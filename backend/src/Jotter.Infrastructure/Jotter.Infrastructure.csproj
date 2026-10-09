@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Jotter.Application\Jotter.Application.csproj" />
+    <ProjectReference Include="..\Jotter.Domain\Jotter.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WebSocket, HttpContext, BackgroundService -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="EFCore.NamingConventions" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="MailKit" />
+  </ItemGroup>
+
+</Project>

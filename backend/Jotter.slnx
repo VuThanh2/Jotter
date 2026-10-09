@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".dockerignore" />
+    <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="Dockerfile" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Jotter.Domain/Jotter.Domain.csproj" />
+    <Project Path="src/Jotter.Application/Jotter.Application.csproj" />
+    <Project Path="src/Jotter.Infrastructure/Jotter.Infrastructure.csproj" />
+    <Project Path="src/Jotter.Api/Jotter.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Jotter.Domain.UnitTests/Jotter.Domain.UnitTests.csproj" />
+  </Folder>
+</Solution>

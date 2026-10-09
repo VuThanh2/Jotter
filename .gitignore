@@ -1,0 +1,44 @@
+# ==================== Secrets ====================
+.env
+.env.*
+!.env.example
+docs/
+
+# ==================== OS / Editor ====================
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+.idea/
+*.iml
+*.swp
+
+# ==================== Backend (.NET) ====================
+backend/**/bin/
+backend/**/obj/
+backend/**/TestResults/
+backend/**/uploads/
+backend/.vs/
+*.user
+*.suo
+*.userprefs
+*.rsuser
+*.DotSettings.user
+*.nupkg
+*.snupkg
+coverage*.xml
+coverage*.json
+*.coverage
+
+# ==================== Frontend (Flutter) ====================
+# Phần còn lại do frontend/.gitignore và frontend/<platform>/.gitignore (Flutter sinh) đảm nhiệm
+*.jks
+*.keystore
+
+# ==================== Docker volumes (local) ====================
+.docker-data/
+
+
