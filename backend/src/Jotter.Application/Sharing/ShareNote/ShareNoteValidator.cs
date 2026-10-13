@@ -13,9 +13,11 @@ public sealed class ShareNoteValidator : AbstractValidator<ShareNoteInputDto>
             .NotEmpty()
             .Must(recipients => recipients is null || recipients.Count <= MaxRecipientsPerRequest);
 
+        // Cố ý không kiểm định dạng email: email gõ sai phải bị từ chối riêng (RecipientNotRegistered)
+        // chứ không được làm cả lô thất bại.
         RuleForEach(x => x.Recipients).ChildRules(recipient =>
         {
-            recipient.RuleFor(x => x.Email).ValidEmail();
+            recipient.RuleFor(x => x.Email).NotEmpty().MaximumLength(ValidationExtensions.MaxEmailLength);
             recipient.RuleFor(x => x.Permission).IsInEnum().WithError(ShareErrors.InvalidPermission);
         });
     }
