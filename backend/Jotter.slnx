@@ -16,5 +16,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/Jotter.Domain.UnitTests/Jotter.Domain.UnitTests.csproj" />
     <Project Path="tests/Jotter.Application.UnitTests/Jotter.Application.UnitTests.csproj" />
+    <Project Path="tests/Jotter.Infrastructure.IntegrationTests/Jotter.Infrastructure.IntegrationTests.csproj" />
   </Folder>
 </Solution>

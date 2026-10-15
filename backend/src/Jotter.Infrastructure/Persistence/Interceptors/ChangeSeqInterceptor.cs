@@ -68,9 +68,7 @@ public sealed class ChangeSeqInterceptor : SaveChangesInterceptor
 
     private async Task AssignChangeSeqAsync(DbContext context, CancellationToken ct)
     {
-        // Interceptor chạy trước bước DetectChanges của SaveChanges nên phải tự gọi để thấy entity vừa bị sửa.
-        context.ChangeTracker.DetectChanges();
-
+        // Entries() tự chạy DetectChanges nên cũng thấy các entity vừa bị sửa mà chưa được phát hiện.
         var trackedEntries = context.ChangeTracker
             .Entries<ISyncTracked>()
             .Where(entry => entry.State is EntityState.Added or EntityState.Modified)
