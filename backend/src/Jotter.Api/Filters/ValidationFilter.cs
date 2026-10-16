@@ -9,7 +9,8 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 namespace Jotter.Api;
 
 // Chạy validator của mọi InputDto trước khi vào Command/Query, nên use case luôn nhận dữ liệu đúng hình dạng.
-// Thiếu hẳn một tham số bắt buộc (body "null", thiếu tệp) cũng bị chặn ở đây thay vì thành NullReferenceException.
+// Thiếu hẳn một tham số bắt buộc (vd. không gửi tệp) cũng bị chặn ở đây thay vì thành NullReferenceException;
+// body rỗng hay "null" thì [ApiController] đã chặn từ bước model binding.
 public sealed class ValidationFilter : IAsyncActionFilter
 {
     private static readonly ConcurrentDictionary<ParameterInfo, bool> RequiredParameters = new();
@@ -63,11 +64,8 @@ public sealed class ValidationFilter : IAsyncActionFilter
         parameter.BindingInfo?.BindingSource is not { } source
         || (source != BindingSource.Services && source != BindingSource.Special);
 
-    // Thiếu cả body thì lỗi thuộc về toàn bộ body (trường rỗng), giống lỗi model binding của MVC.
     private static string FieldNameOf(ControllerParameterDescriptor parameter) =>
-        parameter.BindingInfo?.BindingSource == BindingSource.Body
-            ? string.Empty
-            : parameter.BindingInfo?.BinderModelName ?? parameter.Name;
+        parameter.BindingInfo?.BinderModelName ?? parameter.Name;
 
     private static bool IsRequired(ParameterInfo parameter) =>
         RequiredParameters.GetOrAdd(parameter, static info =>
