@@ -1,0 +1,115 @@
+# Chạy lần lượt từ trên xuống: login lấy token cho các request phía dưới.
+# Tài khoản demo do DemoDataSeeder tạo khi khởi động.
+@host = http://localhost:5080
+@email = demo@jotter.app
+@password = Demo@123
+
+### Liveness / readiness
+GET {{host}}/health
+
+###
+GET {{host}}/health/ready
+
+### Đăng nhập
+# @name login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+###
+@token = {{login.response.body.$.accessToken}}
+
+### Hồ sơ
+GET {{host}}/api/me
+Authorization: Bearer {{token}}
+
+### Tuỳ chọn hiển thị
+PUT {{host}}/api/me/preferences
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "noteFontSize": 16,
+  "defaultNoteColor": "#FFF8E1",
+  "themeMode": "Dark",
+  "listViewMode": "Grid"
+}
+
+### Danh sách note (tìm kiếm không dấu, ghim trước)
+GET {{host}}/api/notes?scope=all&q=ke hoach&limit=20
+Authorization: Bearer {{token}}
+
+### Tạo note — noteId do client sinh (UUID v7), gửi lại cùng Idempotency-Key thì nhận Idempotent-Replay: true
+# @name createNote
+POST {{host}}/api/notes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: 0199f2a0-0000-7000-8000-000000000001
+
+{
+  "noteId": "0199f2a0-0000-7000-8000-0000000000a1",
+  "title": "Note từ file .http",
+  "content": "Nội dung đầu tiên"
+}
+
+### Ghi nội dung — lệch baseVersion trả 409 VersionConflict kèm serverNote
+PUT {{host}}/api/notes/0199f2a0-0000-7000-8000-0000000000a1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: 0199f2a0-0000-7000-8000-000000000002
+
+{
+  "baseVersion": 1,
+  "title": "Note từ file .http",
+  "content": "Nội dung đã sửa"
+}
+
+### Polling dự phòng khi WebSocket không dùng được
+GET {{host}}/api/notes/0199f2a0-0000-7000-8000-0000000000a1/version
+Authorization: Bearer {{token}}
+
+### Ghim
+PUT {{host}}/api/notes/0199f2a0-0000-7000-8000-0000000000a1/pin
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "isPinned": true
+}
+
+### Nhãn
+GET {{host}}/api/labels
+Authorization: Bearer {{token}}
+
+### Được chia sẻ với tôi
+GET {{host}}/api/shared-with-me
+Authorization: Bearer {{token}}
+
+### Đồng bộ ngoại tuyến (since=0 là tải toàn bộ)
+GET {{host}}/api/sync?since=0&limit=200
+Authorization: Bearer {{token}}
+
+### Token cho WebSocket: ws://localhost:5080/ws?token=...
+POST {{host}}/api/realtime/token
+Authorization: Bearer {{token}}
+
+### Hỏi đáp AI trên kho note
+POST {{host}}/api/ai/ask
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "question": "Kế hoạch dự án cuối kỳ gồm những tuần nào?"
+}
+
+### Xoá note (tombstone)
+DELETE {{host}}/api/notes/0199f2a0-0000-7000-8000-0000000000a1
+Authorization: Bearer {{token}}
+
+### Đăng xuất thiết bị hiện tại
+POST {{host}}/api/auth/logout
+Authorization: Bearer {{token}}
