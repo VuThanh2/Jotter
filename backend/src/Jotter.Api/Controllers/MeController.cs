@@ -26,10 +26,12 @@ public sealed class MeController : ControllerBase
         return result.ToActionResult(StatusCodes.Status200OK);
     }
 
+    // Tham số tệp không gắn [FromForm]: xem ghi chú ở AttachmentsController.Upload.
     [HttpPost("avatar")]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType<UploadAvatarOutputDto>(StatusCodes.Status200OK)]
     public async Task<IActionResult> UploadAvatar(
-        [FromForm] IFormFile file,
+        IFormFile file,
         [FromServices] UploadAvatarCommand command,
         CancellationToken ct)
     {

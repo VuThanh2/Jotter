@@ -22,13 +22,16 @@ public sealed class AttachmentsController : ControllerBase
         return result.ToActionResult(StatusCodes.Status200OK);
     }
 
+    // Không gắn [FromForm] cho tham số tệp: nó đổi nguồn bind từ FormFile sang Form, khiến OpenAPI mô tả body là
+    // form-urlencoded và Swagger UI mất ô chọn tệp. [ApiController] tự suy ra FormFile, bind theo tên y như cũ.
     [HttpPost("notes/{noteId:guid}/attachments")]
     [Idempotent]
+    [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxUploadRequestBytes)]
     [ProducesResponseType<UploadAttachmentsOutputDto>(StatusCodes.Status201Created)]
     public async Task<IActionResult> Upload(
         Guid noteId,
-        [FromForm] IFormFileCollection files,
+        IFormFileCollection files,
         [FromServices] IValidator<UploadAttachmentsInputDto> validator,
         [FromServices] UploadAttachmentsCommand command,
         CancellationToken ct)

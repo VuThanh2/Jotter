@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -15,6 +16,10 @@ namespace Jotter.Infrastructure;
 public static class InfrastructureExtensions
 {
     private const string ConnectionStringName = "Default";
+
+    // Kiểu internal của framework nên chỉ nhận diện được qua tên; DependencyInjectionTests báo ngay nếu tên này trôi.
+    private const string DataProtectionHostedServiceName =
+        "Microsoft.AspNetCore.DataProtection.Internal.DataProtectionHostedService";
 
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
@@ -89,6 +94,18 @@ public static class InfrastructureExtensions
 
         services.AddScoped<SessionValidator>();
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+
+        // AddAuthentication kéo theo AddDataProtection, và nó đăng ký một hosted service tạo sẵn key ring mặc định lúc
+        // khởi động: ghi key không mã hoá ra ~/.aspnet trong container kèm hai cảnh báo. Không gì dùng key ring đó (JWT
+        // ký bằng secret riêng, token Identity đi qua provider ephemeral ở trên) nên bỏ bước làm nóng này; nếu sau này
+        // có thứ thật sự cần nó, key ring vẫn được tạo lúc dùng và cảnh báo sẽ hiện lại đúng lúc.
+        var keyRingWarmUp = services.SingleOrDefault(descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType?.FullName == DataProtectionHostedServiceName);
+        if (keyRingWarmUp is not null)
+        {
+            services.Remove(keyRingWarmUp);
+        }
         services
             .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
             .Configure<IOptions<JwtOptions>>((bearer, jwtOptions) => ConfigureJwtBearer(bearer, jwtOptions.Value));

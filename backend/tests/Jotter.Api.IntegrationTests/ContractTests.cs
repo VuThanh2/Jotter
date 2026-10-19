@@ -35,6 +35,9 @@ public sealed class ContractTests(ApiFixture api)
         400, "InvalidIdempotencyKey", null)]
     [InlineData(true, "GET", $"/api/notes/{MissingNote}", null, null, null, 404, "NoteNotFound", null)]
     [InlineData(true, "PUT", $"/api/notes/{MissingNote}/pin", null, null, null, 415, "UnsupportedContentType", null)]
+    [InlineData(true, "POST", "/api/me/avatar", "{}", Json, null, 415, "UnsupportedContentType", null)]
+    [InlineData(true, "POST", $"/api/notes/{MissingNote}/attachments", "{}", Json, null,
+        415, "UnsupportedContentType", null)]
     [InlineData(true, "PATCH", "/api/me", null, null, null, 405, "MethodNotAllowed", null)]
     public async Task EveryErrorPath_ReturnsTheSameProblemShape(
         bool authenticated,
@@ -137,5 +140,55 @@ public sealed class ContractTests(ApiFixture api)
         Assert.Equal("List", preferences.GetProperty("listViewMode").GetString());
 
         await asInteger.ReadProblemAsync(HttpStatusCode.BadRequest, "ValidationError");
+    }
+
+    // Swagger UI chỉ hiện ô chọn tệp khi tài liệu khai báo multipart với trường nhị phân; khai báo sai thì người chấm
+    // không upload thử được trên Swagger dù backend vẫn nhận multipart bình thường.
+    [Theory]
+    [InlineData("/api/notes/{noteId}/attachments", "files", true)]
+    [InlineData("/api/me/avatar", "file", false)]
+    public async Task UploadEndpoints_AreDocumentedAsMultipartWithBinaryFiles(string path, string field, bool isList)
+    {
+        using var client = api.CreateClient();
+        using var response = await client.GetAsync("/openapi/v1.json", Ct);
+        var document = await response.ReadJsonAsync();
+
+        var content = document.GetProperty("paths").GetProperty(path).GetProperty("post")
+            .GetProperty("requestBody").GetProperty("content");
+        var form = Assert.Single(content.EnumerateObject());
+        Assert.Equal("multipart/form-data", form.Name);
+
+        var fileSchema = Resolve(document, form.Value.GetProperty("schema")).GetProperty("properties").GetProperty(field);
+        if (isList)
+        {
+            fileSchema = Resolve(document, fileSchema).GetProperty("items");
+        }
+
+        Assert.Equal("binary", Resolve(document, fileSchema).GetProperty("format").GetString());
+    }
+
+    // Mọi 429 đều mang Retry-After, kể cả 429 nghiệp vụ "gửi lại mã quá sớm", để client chỉ đọc một chỗ.
+    [Fact]
+    public async Task ResendingTheActivationCodeTooSoon_CarriesRetryAfter()
+    {
+        using var client = await api.CreateUserClientAsync();
+
+        using var response = await client.PostAsync("/api/auth/activation/resend", content: null, Ct);
+        var problem = await response.ReadProblemAsync(HttpStatusCode.TooManyRequests, "TooManyRequests");
+
+        var cooldownSeconds = problem.GetProperty("cooldownSeconds").GetInt32();
+        Assert.True(cooldownSeconds > 0);
+        Assert.Equal(TimeSpan.FromSeconds(cooldownSeconds), response.Headers.RetryAfter?.Delta);
+    }
+
+    private static JsonElement Resolve(JsonElement document, JsonElement schema)
+    {
+        if (!schema.TryGetProperty("$ref", out var reference))
+        {
+            return schema;
+        }
+
+        var name = reference.GetString()!.Split('/')[^1];
+        return document.GetProperty("components").GetProperty("schemas").GetProperty(name);
     }
 }

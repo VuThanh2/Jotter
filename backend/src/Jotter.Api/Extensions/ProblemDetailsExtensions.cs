@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using System.Globalization;
 using Jotter.Domain;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.Net.Http.Headers;
 
 namespace Jotter.Api;
 
@@ -11,12 +13,25 @@ public static class ProblemDetailsExtensions
 {
     private const string ContentType = "application/problem+json";
 
+    // Lỗi nghiệp vụ báo thời gian chờ qua chi tiết này (vd. gửi lại mã quá sớm).
+    private const string CooldownSecondsDetail = "cooldownSeconds";
+
     public static Task WriteProblemAsync(this HttpContext httpContext, Error error, int? statusCode = null)
     {
         var problem = httpContext.CreateProblemDetails(error, statusCode ?? ToStatusCode(error.Type));
         var json = httpContext.RequestServices.GetRequiredService<IOptions<JsonOptions>>().Value.JsonSerializerOptions;
 
         httpContext.Response.StatusCode = problem.Status!.Value;
+
+        // Mọi 429 đều mang Retry-After như 429 của rate limiter, để client chỉ cần đọc một chỗ.
+        // Rate limiter đã tự ghi header theo lease của nó thì giữ nguyên.
+        if (problem.Status == StatusCodes.Status429TooManyRequests
+            && error.Details?.GetValueOrDefault(CooldownSecondsDetail) is int cooldownSeconds
+            && !httpContext.Response.Headers.ContainsKey(HeaderNames.RetryAfter))
+        {
+            httpContext.Response.Headers.RetryAfter = cooldownSeconds.ToString(CultureInfo.InvariantCulture);
+        }
+
         return httpContext.Response.WriteAsJsonAsync(problem, json, ContentType, httpContext.RequestAborted);
     }
 
