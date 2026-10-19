@@ -5,6 +5,7 @@
     <File Path="Directory.Build.props" />
     <File Path="Directory.Packages.props" />
     <File Path="Dockerfile" />
+    <File Path="global.json" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Jotter.Domain/Jotter.Domain.csproj" />
@@ -14,5 +15,8 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Jotter.Domain.UnitTests/Jotter.Domain.UnitTests.csproj" />
+    <Project Path="tests/Jotter.Application.UnitTests/Jotter.Application.UnitTests.csproj" />
+    <Project Path="tests/Jotter.Infrastructure.IntegrationTests/Jotter.Infrastructure.IntegrationTests.csproj" />
+    <Project Path="tests/Jotter.Api.IntegrationTests/Jotter.Api.IntegrationTests.csproj" />
   </Folder>
 </Solution>
