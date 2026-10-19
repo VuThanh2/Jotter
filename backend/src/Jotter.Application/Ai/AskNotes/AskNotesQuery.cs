@@ -14,6 +14,11 @@ public sealed class AskNotesQuery(
     // Đoạn có độ tương đồng cosine dưới ngưỡng coi như không liên quan; không còn đoạn nào thì nói thẳng là không đủ thông tin.
     private const float MinRelevanceScore = 0.3f;
 
+    // Điểm tuyệt đối của embedding không tách được note nguồn khỏi note lạc đề (đo với gemini-embedding-2: note đúng có
+    // khi chỉ 0.56, note lạc đề có khi tới 0.65), nhưng note nguồn luôn đứng đầu và bỏ xa phần còn lại. Nên chỉ trích dẫn
+    // những note sát điểm cao nhất; LLM vẫn nhận đủ các đoạn trên MinRelevanceScore làm ngữ cảnh.
+    private const float CitationScoreMargin = 0.05f;
+
     private const int MaxExcerptLength = 200;
 
     private const string NotEnoughContextAnswer =
@@ -54,22 +59,28 @@ public sealed class AskNotesQuery(
         var answer = await llm.AnswerAsync(question, passages, ct);
 
         // LLM tự nhận không đủ căn cứ thì không gắn trích dẫn — trích dẫn phải là nguồn thật của câu trả lời.
+        // Câu báo không tìm thấy dùng chung một câu cố định: model nhỏ đôi khi trả câu này bằng tiếng Anh.
         return answer.HasEnoughContext
             ? new AskNotesOutputDto(answer.Text, HasEnoughContext: true, ToCitations(relevantMatches))
-            : new AskNotesOutputDto(answer.Text, HasEnoughContext: false, Citations: []);
+            : NotEnoughContext();
     }
 
     private static AskNotesOutputDto NotEnoughContext() =>
         new(NotEnoughContextAnswer, HasEnoughContext: false, Citations: []);
 
-    // Mỗi note chỉ trích một lần, lấy đoạn khớp nhất của note đó.
-    private static List<CitationDto> ToCitations(IEnumerable<EmbeddingMatch> matches) =>
-        matches
+    // Chỉ trích những note sát điểm cao nhất; mỗi note một lần, lấy đoạn khớp nhất của note đó.
+    private static List<CitationDto> ToCitations(IReadOnlyCollection<EmbeddingMatch> matches)
+    {
+        var citationFloor = matches.Max(match => match.Score) - CitationScoreMargin;
+
+        return matches
+            .Where(match => match.Score >= citationFloor)
             .GroupBy(match => match.NoteId)
             .Select(group => group.MaxBy(match => match.Score)!)
             .OrderByDescending(match => match.Score)
             .Select(match => new CitationDto(match.NoteId, match.NoteTitle, ToExcerpt(match.ChunkText), match.Score))
             .ToList();
+    }
 
     private static string ToExcerpt(string text) =>
         text.Length <= MaxExcerptLength ? text : $"{text[..MaxExcerptLength].TrimEnd()}…";

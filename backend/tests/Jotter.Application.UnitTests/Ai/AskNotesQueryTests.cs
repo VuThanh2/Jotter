@@ -71,7 +71,7 @@ public sealed class AskNotesQueryTests
     [Fact]
     public async Task Citations_ListEachSourceNoteOnce_StrongestFirst()
     {
-        GivenMatches(Match(_noteA, 0.5f), Match(_noteB, 0.7f), Match(_noteA, 0.9f));
+        GivenMatches(Match(_noteA, 0.86f), Match(_noteB, 0.88f), Match(_noteA, 0.9f));
 
         var result = await ExecuteAsync();
 
@@ -79,18 +79,36 @@ public sealed class AskNotesQueryTests
         Assert.Equal(0.9f, result.Value.Citations[0].Score);
     }
 
-    // LLM tự nhận không đủ căn cứ thì không được gắn trích dẫn giả như thể câu trả lời có nguồn.
+    // Note lạc đề vẫn qua được ngưỡng tuyệt đối (embedding cho điểm ~0.5 cả với note không liên quan) nhưng bị note
+    // nguồn bỏ xa: nó vẫn là ngữ cảnh cho LLM, chỉ không được hiện thành trích dẫn như thể là nguồn của câu trả lời.
+    [Fact]
+    public async Task NotesFarBehindTheBestMatch_AreGivenToTheLlm_ButNotCited()
+    {
+        GivenMatches(Match(_noteA, 0.77f), Match(_noteB, 0.55f));
+
+        var result = await ExecuteAsync();
+
+        Assert.Equal(new[] { _noteA }, result.Value.Citations.Select(c => c.NoteId));
+        await _llm.Received(1).AnswerAsync(
+            Question,
+            Arg.Is<IReadOnlyList<ContextPassage>>(passages => passages.Count == 2),
+            Arg.Any<CancellationToken>());
+    }
+
+    // LLM tự nhận không đủ căn cứ thì không được gắn trích dẫn giả như thể câu trả lời có nguồn,
+    // và câu báo dùng chung câu cố định thay vì lời của model (có khi bằng tiếng Anh).
     [Fact]
     public async Task LlmAdmittingInsufficientContext_ReturnsNoCitations()
     {
         GivenMatches(Match(_noteA, 0.9f));
         _llm.AnswerAsync(Question, Arg.Any<IReadOnlyList<ContextPassage>>(), Arg.Any<CancellationToken>())
-            .Returns(new LlmAnswer("Không đủ thông tin.", HasEnoughContext: false));
+            .Returns(new LlmAnswer("The notes do not contain the answer.", HasEnoughContext: false));
 
         var result = await ExecuteAsync();
 
         Assert.False(result.Value.HasEnoughContext);
         Assert.Empty(result.Value.Citations);
+        Assert.Equal(await NoContextAnswerAsync(), result.Value.Answer);
     }
 
     [Fact]
@@ -102,6 +120,17 @@ public sealed class AskNotesQueryTests
         var result = await ExecuteAsync();
 
         Assert.Equal(AiErrors.LlmUnavailable, result.Error);
+    }
+
+    // Câu báo không tìm thấy của chính Query, lấy qua nhánh không có note nào đọc được để test không chép lại chuỗi.
+    private async Task<string> NoContextAnswerAsync()
+    {
+        var noNotes = Substitute.For<INoteAccessPolicy>();
+        noNotes.ListContentReadableNoteIdsAsync(_userId, Arg.Any<CancellationToken>()).Returns(new List<Guid>());
+
+        var result = await new AskNotesQuery(_currentUser, noNotes, _embeddings, _llm)
+            .ExecuteAsync(new AskNotesInputDto(Question), TestData.Ct);
+        return result.Value.Answer;
     }
 
     private EmbeddingMatch Match(Guid noteId, float score) => new(noteId, "Đồ án", $"Đoạn {score}", score);

@@ -17,7 +17,7 @@ public sealed class EmbeddingIndexerJobService(
 
     protected override async Task RunOnceAsync(CancellationToken ct)
     {
-        if (!_options.IsEmbeddingConfigured)
+        if (!_options.IsConfigured)
         {
             return;
         }
@@ -43,10 +43,10 @@ public sealed class EmbeddingIndexerJobService(
 
     public override Task StartAsync(CancellationToken cancellationToken)
     {
-        if (!_options.IsEmbeddingConfigured)
+        if (!_options.IsConfigured)
         {
             logger.LogWarning(
-                "Chưa cấu hình Llm:EmbeddingApiKey — tính năng hỏi đáp AI sẽ không có dữ liệu để truy hồi.");
+                "Chưa cấu hình Llm:ApiKey — tính năng hỏi đáp AI sẽ không có dữ liệu để truy hồi.");
         }
 
         return base.StartAsync(cancellationToken);

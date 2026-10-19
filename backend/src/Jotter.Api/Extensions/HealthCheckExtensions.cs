@@ -20,9 +20,9 @@ public static class HealthCheckExtensions
             // Không gọi thử provider để mỗi lần kiểm không tốn hạn mức.
             .AddCheck(
                 "llm",
-                () => llm is { IsChatConfigured: true, IsEmbeddingConfigured: true }
+                () => llm.IsConfigured
                     ? HealthCheckResult.Healthy()
-                    : HealthCheckResult.Degraded("Chưa cấu hình khoá API cho LLM hoặc embedding."),
+                    : HealthCheckResult.Degraded("Chưa cấu hình khoá API cho dịch vụ AI (Llm:ApiKey)."),
                 tags: [ReadinessTag]);
 
         return services;

@@ -5,7 +5,7 @@ using static Jotter.Api.IntegrationTests.ApiClientExtensions;
 
 namespace Jotter.Api.IntegrationTests;
 
-// Provider giả thay cho Claude để kiểm đúng phần của Api: text/event-stream, tên sự kiện, JSON của từng sự kiện theo
+// Provider giả thay cho Gemini để kiểm đúng phần của Api: text/event-stream, tên sự kiện, JSON của từng sự kiện theo
 // kiểu thực tế của nó (không phải kiểu cơ sở rỗng), và bản tóm tắt được lưu khi luồng kết thúc.
 public sealed class SummaryStreamTests(ApiFixture api)
 {

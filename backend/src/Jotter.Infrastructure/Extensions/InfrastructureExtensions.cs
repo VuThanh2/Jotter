@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using Jotter.Application;
 using Jotter.Domain;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -211,23 +210,13 @@ public static class InfrastructureExtensions
 
     private static IServiceCollection AddAi(this IServiceCollection services)
     {
+        // SDK tự gắn khoá và URL; ở đây chỉ đặt timeout để một lần gọi treo không giữ request mãi.
         services
-            .AddHttpClient(VoyageEmbeddingClient.HttpClientName)
+            .AddHttpClient(GeminiLlmService.HttpClientName)
             .ConfigureHttpClient((provider, client) =>
-            {
-                var llm = provider.GetRequiredService<IOptions<LlmOptions>>().Value;
-                client.BaseAddress = new Uri(llm.EmbeddingBaseUrl);
-                client.Timeout = llm.RequestTimeout;
+                client.Timeout = provider.GetRequiredService<IOptions<LlmOptions>>().Value.RequestTimeout);
 
-                if (llm.IsEmbeddingConfigured)
-                {
-                    client.DefaultRequestHeaders.Authorization =
-                        new AuthenticationHeaderValue("Bearer", llm.EmbeddingApiKey);
-                }
-            });
-
-        services.AddSingleton<VoyageEmbeddingClient>();
-        services.AddSingleton<ILlmService, ClaudeLlmService>();
+        services.AddSingleton<ILlmService, GeminiLlmService>();
 
         return services;
     }
