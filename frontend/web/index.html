@@ -1,46 +1,27 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
-
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Jotter - cross-platform note-taking app">
-
-  <!-- iOS meta tags & icons -->
+  <meta name="description" content="A little less to remember. A little more room to think. Jotter is a quiet home for your notes and ideas.">
+  <meta name="theme-color" content="#FAF9F6">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="jotter">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>jotter</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Jotter">
+  <link rel="icon" type="image/svg+xml" href="icons/jotter.svg">
   <link rel="manifest" href="manifest.json">
+  <title>Jotter — A space for your thoughts</title>
+  <style>
+    body { margin: 0; background: #FAF9F6; }
+    #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 18px; color: #777A72; font: 13px system-ui, sans-serif; }
+    #loading img { width: 48px; height: 48px; transform: rotate(-6deg); }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <div id="loading" role="status"><img src="icons/jotter.svg" alt=""><span>Making room for your thoughts…</span></div>
+  <noscript>Jotter needs JavaScript to open your workspace. Enable JavaScript and reload this page.</noscript>
+  <script>window.addEventListener('flutter-first-frame', function () { document.getElementById('loading')?.remove(); });</script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
