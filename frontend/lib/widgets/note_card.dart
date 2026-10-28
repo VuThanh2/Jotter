@@ -7,7 +7,7 @@ import '../theme.dart';
 enum NoteAction { pin, labels, files, sharing, protection, summary, delete }
 
 class NoteCard extends StatefulWidget {
-  NoteCard({
+  const NoteCard({
     super.key,
     required this.note,
     required this.labels,
@@ -33,22 +33,28 @@ class _NoteCardState extends State<NoteCard> {
   bool _hovered = false;
 
   Color get _color {
-    if (widget.note.isProtected)
+    if (widget.note.isProtected) {
       return context.jotterColors.tint(JotterColors.lavender);
-    if (widget.defaultColor != null)
+    }
+    if (widget.defaultColor != null) {
       return context.jotterColors.tint(widget.defaultColor!);
+    }
     final label = widget.labels
         .where((label) => widget.note.labelIds.contains(label.id))
         .firstOrNull;
-    if (label == null)
+    if (label == null) {
       return Theme.of(context).colorScheme.surfaceContainerLowest;
+    }
     final name = label.name.toLowerCase();
-    if (name.contains('work'))
+    if (name.contains('work')) {
       return context.jotterColors.tint(JotterColors.butter);
-    if (name.contains('personal'))
+    }
+    if (name.contains('personal')) {
       return context.jotterColors.tint(JotterColors.sage);
-    if (name.contains('idea'))
+    }
+    if (name.contains('idea')) {
       return context.jotterColors.tint(JotterColors.peach);
+    }
     return context.jotterColors.tint(
       [
         JotterColors.butter,
@@ -120,6 +126,18 @@ class _NoteCardState extends State<NoteCard> {
             color: context.jotterColors.muted,
           ),
           Spacer(),
+          if (note.conflictOfNoteId != null)
+            Tooltip(
+              message: 'Conflict copy',
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Icon(
+                  Icons.copy_all_outlined,
+                  size: 15,
+                  color: context.jotterColors.muted,
+                ),
+              ),
+            ),
           if (note.isPinned)
             Padding(
               padding: EdgeInsets.only(right: 9),
@@ -177,10 +195,18 @@ class _NoteCardState extends State<NoteCard> {
           ),
           Spacer(),
           if (!note.isOwned)
-            Icon(
-              Icons.people_outline_rounded,
-              size: 15,
-              color: context.jotterColors.muted,
+            Flexible(
+              child: Text(
+                widget.sharedBy == null
+                    ? 'Shared with you'
+                    : 'by ${widget.sharedBy}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: context.jotterColors.muted,
+                ),
+              ),
             ),
           if (note.isProtected)
             Icon(

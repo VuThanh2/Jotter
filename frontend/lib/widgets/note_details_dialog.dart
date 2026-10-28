@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../data/api_note_repository.dart';
@@ -15,11 +16,16 @@ Future<bool?> showNoteDetailsDialog(
   required ApiNoteRepository repository,
   required JotterNote note,
   String initialTab = 'Files',
+  ValueListenable<Map<String, dynamic>?>? updates,
 }) => showDialog<bool>(
   context: context,
   barrierDismissible: false,
-  builder: (_) =>
-      _NoteDetails(repository: repository, note: note, initialTab: initialTab),
+  builder: (_) => _NoteDetails(
+    repository: repository,
+    note: note,
+    initialTab: initialTab,
+    updates: updates,
+  ),
 );
 
 class _NoteDetails extends StatefulWidget {
@@ -27,10 +33,12 @@ class _NoteDetails extends StatefulWidget {
     required this.repository,
     required this.note,
     required this.initialTab,
+    this.updates,
   });
   final ApiNoteRepository repository;
   final JotterNote note;
   final String initialTab;
+  final ValueListenable<Map<String, dynamic>?>? updates;
   @override
   State<_NoteDetails> createState() => _NoteDetailsState();
 }
@@ -53,6 +61,12 @@ class _NoteDetailsState extends State<_NoteDetails> {
   String _generated = '';
   bool _generatedSaved = false;
   bool _generating = false;
+  bool _accessDenied = false;
+  bool _permissionLost = false;
+  int _accessGeneration = 0;
+  final _privateContentInvalidated = ValueNotifier<bool>(false);
+  bool get _canEdit =>
+      widget.note.canEdit && !_permissionLost && !_accessDenied;
   StreamSubscription<SummaryEvent>? _summarySubscription;
 
   ApiNoteRepository get _api => widget.repository;
@@ -64,11 +78,44 @@ class _NoteDetailsState extends State<_NoteDetails> {
     _tab = _tabs.contains(widget.initialTab) ? widget.initialTab : 'Files';
     _protected = widget.note.isProtected;
     _locked = _protected && !widget.note.contentLoaded;
+    widget.updates?.addListener(_onUpdate);
     _loadTab();
+  }
+
+  void _onUpdate() {
+    final event = widget.updates?.value;
+    if (!mounted || event == null || event['noteId'] != _id) return;
+    if (event['type'] == 'permissionChanged') {
+      setState(() => _permissionLost = event['permission'] == 'ReadOnly');
+      return;
+    }
+    if (event['type'] != 'accessRevoked' && event['isProtected'] != true) {
+      return;
+    }
+    _accessGeneration++;
+    _privateContentInvalidated.value = true;
+    _summarySubscription?.cancel();
+    setState(() {
+      _accessDenied = event['isProtected'] != true;
+      if (event['isProtected'] == true) {
+        _protected = true;
+        _locked = true;
+      }
+      _files = [];
+      _shares = [];
+      _summary = null;
+      _generated = '';
+      _generating = false;
+      _error = _accessDenied
+          ? 'Your access to this note was removed. Close this window to return to your workspace.'
+          : 'This note was protected. Unlock it again to view its files and summary.';
+    });
   }
 
   @override
   void dispose() {
+    widget.updates?.removeListener(_onUpdate);
+    _privateContentInvalidated.dispose();
     _emails.dispose();
     _summarySubscription?.cancel();
     super.dispose();
@@ -76,36 +123,44 @@ class _NoteDetailsState extends State<_NoteDetails> {
 
   Future<void> _loadTab() async {
     final tab = _tab;
+    final generation = _accessGeneration;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      if (_locked && tab != 'Protection') return;
+      if (_accessDenied || (_locked && tab != 'Protection')) return;
       if (tab == 'Files') {
         final files = await _api.listAttachments(_id);
-        if (mounted && _tab == tab) setState(() => _files = files);
+        if (mounted && _tab == tab && generation == _accessGeneration) {
+          setState(() => _files = files);
+        }
       }
       if (tab == 'Sharing' && widget.note.isOwned) {
         final shares = await _api.listShares(_id);
-        if (mounted && _tab == tab) setState(() => _shares = shares);
+        if (mounted && _tab == tab && generation == _accessGeneration) {
+          setState(() => _shares = shares);
+        }
       }
       if (tab == 'Summary') {
         final summary = await _api.getSummary(_id);
-        if (mounted && _tab == tab)
+        if (mounted && _tab == tab && generation == _accessGeneration) {
           setState(() {
             _summary = summary;
             _generated = summary?.text ?? '';
             _generatedSaved = summary != null;
           });
+        }
       }
     } catch (error) {
-      if (mounted && _tab == tab)
+      if (mounted && _tab == tab) {
         setState(() {
           _error = _message(error);
-          if (error is RepositoryException && error.statusCode == 423)
+          if (error is RepositoryException && error.statusCode == 423) {
             _locked = true;
+          }
         });
+      }
     } finally {
       if (mounted && _tab == tab) setState(() => _loading = false);
     }
@@ -120,7 +175,7 @@ class _NoteDetailsState extends State<_NoteDetails> {
     String? success,
     bool changes = true,
   }) async {
-    if (_busy || _generating) return;
+    if (_busy || _generating || _accessDenied) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -134,12 +189,14 @@ class _NoteDetailsState extends State<_NoteDetails> {
         if (success != null) _notice = success;
       });
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _error = _message(error);
-          if (error is RepositoryException && error.statusCode == 423)
+          if (error is RepositoryException && error.statusCode == 423) {
             _locked = true;
+          }
         });
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -149,10 +206,11 @@ class _NoteDetailsState extends State<_NoteDetails> {
     await _run(() async {
       final file = await openFile();
       if (file == null) return;
-      if (await file.length() > maxAttachmentBytes)
+      if (await file.length() > maxAttachmentBytes) {
         throw const RepositoryException(
           'Each attachment must be 25 MB or smaller.',
         );
+      }
       final bytes = await file.readAsBytes();
       await _api.attachFile(_id, bytes, file.name);
       _changed = true;
@@ -163,72 +221,99 @@ class _NoteDetailsState extends State<_NoteDetails> {
 
   Future<void> _fileAction(NoteAttachment file, {bool preview = false}) async {
     await _run(() async {
+      final generation = _accessGeneration;
       final bytes = await _api.attachmentBytes(file.id);
-      if (!mounted) return;
+      if (!mounted ||
+          generation != _accessGeneration ||
+          _locked ||
+          _accessDenied) {
+        return;
+      }
+      _privateContentInvalidated.value = false;
       if (preview && file.isImage) {
         await showDialog<void>(
           context: context,
           builder: (context) => Dialog(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800, maxHeight: 700),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            file.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _privateContentInvalidated,
+                builder: (context, invalid, _) => invalid
+                    ? Column(
+                        children: [
+                          const Expanded(
+                            child: Center(
+                              child: Text(
+                                'This image is no longer available in this session.',
+                              ),
+                            ),
                           ),
-                        ),
-                        IconButton(
-                          tooltip: 'Close preview',
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Flexible(
-                    child: InteractiveViewer(
-                      child: Image.memory(
-                        bytes,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, _, _) => const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Text(
-                            'This image cannot be previewed. You can still download it.',
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Close preview'),
                           ),
-                        ),
+                        ],
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    file.name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Close preview',
+                                  onPressed: () => Navigator.pop(context),
+                                  icon: const Icon(Icons.close),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Flexible(
+                            child: InteractiveViewer(
+                              child: Image.memory(
+                                bytes,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) => const Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Text(
+                                    'This image cannot be previewed. You can still download it.',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                try {
+                                  await saveBytes(
+                                    bytes,
+                                    file.name,
+                                    mimeType: file.mimeType,
+                                  );
+                                } catch (error) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(_message(error))),
+                                    );
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.download),
+                              label: const Text('Download image'),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: OutlinedButton.icon(
-                      onPressed: () async {
-                        try {
-                          await saveBytes(
-                            bytes,
-                            file.name,
-                            mimeType: file.mimeType,
-                          );
-                        } catch (error) {
-                          if (context.mounted)
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(_message(error))),
-                            );
-                        }
-                      },
-                      icon: const Icon(Icons.download),
-                      label: const Text('Download image'),
-                    ),
-                  ),
-                ],
               ),
             ),
           ),
@@ -264,12 +349,14 @@ class _NoteDetailsState extends State<_NoteDetails> {
       'Remove attachment?',
       '“${file.name}” will be removed from this note.',
       'Remove',
-    ))
+    )) {
       return;
+    }
     await _run(() async {
       await _api.removeAttachment(file.id);
-      if (mounted)
+      if (mounted) {
         setState(() => _files.removeWhere((item) => item.id == file.id));
+      }
     }, success: 'Attachment removed.');
   }
 
@@ -311,12 +398,14 @@ class _NoteDetailsState extends State<_NoteDetails> {
       'Remove access?',
       '${share.email} will no longer be able to open this note.',
       'Remove access',
-    ))
+    )) {
       return;
+    }
     await _run(() async {
       await _api.revokeShare(_id, share.id);
-      if (mounted)
+      if (mounted) {
         setState(() => _shares.removeWhere((item) => item.id == share.id));
+      }
     }, success: 'Access removed.');
   }
 
@@ -358,11 +447,12 @@ class _NoteDetailsState extends State<_NoteDetails> {
     if (values == null) return;
     await _run(() async {
       await _api.enableProtection(_id, values[0], values[1]);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _protected = true;
           _locked = true;
         });
+      }
     }, success: 'Protection enabled. The note is now locked.');
   }
 
@@ -389,15 +479,17 @@ class _NoteDetailsState extends State<_NoteDetails> {
           'Remove protection?',
           'Anyone with access to this note will be able to read it without its note password.',
           'Remove protection',
-        ))
+        )) {
       return;
+    }
     await _run(() async {
       await _api.disableProtection(_id, values[0]);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _protected = false;
           _locked = false;
         });
+      }
     }, success: 'Note protection removed.');
   }
 
@@ -407,7 +499,7 @@ class _NoteDetailsState extends State<_NoteDetails> {
   }, success: 'Note locked on this session.');
 
   void _generate() {
-    if (_busy || _generating) return;
+    if (_busy || _generating || _accessDenied || _locked) return;
     setState(() {
       _generating = true;
       _generated = '';
@@ -433,11 +525,12 @@ class _NoteDetailsState extends State<_NoteDetails> {
             });
           },
           onError: (Object error) {
-            if (mounted)
+            if (mounted) {
               setState(() {
                 _error = _message(error);
                 _generating = false;
               });
+            }
           },
           onDone: () {
             if (mounted) setState(() => _generating = false);
@@ -447,11 +540,12 @@ class _NoteDetailsState extends State<_NoteDetails> {
 
   Future<void> _cancelSummary() async {
     await _summarySubscription?.cancel();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _generating = false;
         _notice = 'Generation stopped. Only completed summaries are saved.';
       });
+    }
   }
 
   Future<void> _close() async {
@@ -549,7 +643,11 @@ class _NoteDetailsState extends State<_NoteDetails> {
                       children: [
                         if (_error != null) _banner(_error!, error: true),
                         if (_notice != null) _banner(_notice!),
-                        if (_locked && _tab != 'Protection')
+                        if (_accessDenied)
+                          const Text(
+                            'Access to this note is no longer available.',
+                          )
+                        else if (_locked && _tab != 'Protection')
                           _lockedContent()
                         else if (_tab == 'Files')
                           _filesContent()
@@ -626,7 +724,7 @@ class _NoteDetailsState extends State<_NoteDetails> {
         'Attach documents, images, audio, or other files up to 25 MB each. Executable files are not supported.',
       ),
       const SizedBox(height: 18),
-      if (widget.note.canEdit)
+      if (_canEdit)
         Align(
           alignment: Alignment.centerLeft,
           child: FilledButton.icon(
@@ -696,7 +794,7 @@ class _NoteDetailsState extends State<_NoteDetails> {
                       icon: const Icon(Icons.download_outlined, size: 17),
                       label: const Text('Download'),
                     ),
-                    if (widget.note.canEdit)
+                    if (_canEdit)
                       TextButton.icon(
                         onPressed: _busy ? null : () => _removeFile(file),
                         icon: const Icon(Icons.delete_outline, size: 17),
@@ -721,10 +819,11 @@ class _NoteDetailsState extends State<_NoteDetails> {
   );
 
   Widget _sharesContent() {
-    if (!widget.note.isOwned)
+    if (!widget.note.isOwned) {
       return const Text(
         'Only the owner can invite people or manage access. You can read this note and edit it if the owner has granted editing access.',
       );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -826,8 +925,9 @@ class _NoteDetailsState extends State<_NoteDetails> {
                               ? null
                               : (value) {
                                   if (value != null &&
-                                      value != share.permission)
+                                      value != share.permission) {
                                     _changeShare(share, value);
+                                  }
                                 },
                         ),
                       ),
@@ -1051,16 +1151,19 @@ class _PasswordPromptState extends State<_PasswordPrompt> {
                       counterText: '',
                     ),
                     validator: (value) {
-                      if (value == null || value.isEmpty)
+                      if (value == null || value.isEmpty) {
                         return 'Enter ${widget.labels[index].toLowerCase()}.';
+                      }
                       if (widget.newPassword &&
                           index >= widget.labels.length - 2 &&
-                          value.length < 4)
+                          value.length < 4) {
                         return 'Use at least 4 characters.';
+                      }
                       if (widget.newPassword &&
                           index == widget.labels.length - 1 &&
-                          value != _controllers[index - 1].text)
+                          value != _controllers[index - 1].text) {
                         return 'The passwords do not match.';
+                      }
                       return null;
                     },
                   ),
@@ -1088,11 +1191,12 @@ class _PasswordPromptState extends State<_PasswordPrompt> {
       ),
       FilledButton(
         onPressed: () {
-          if (_form.currentState!.validate())
+          if (_form.currentState!.validate()) {
             Navigator.pop(
               context,
               _controllers.map((controller) => controller.text).toList(),
             );
+          }
         },
         child: const Text('Continue'),
       ),

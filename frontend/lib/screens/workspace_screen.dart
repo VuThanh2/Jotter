@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../data/api_note_repository.dart';
 import '../data/account_api.dart';
 import '../data/offline_note_repository.dart';
+import '../data/sync_api.dart';
 import '../data/note_repository.dart';
 import '../data/preview_note_repository.dart';
 import '../models/jotter_label.dart';
@@ -26,7 +26,7 @@ enum _Section { all, pinned, shared, label }
 enum _Sort { updated, title }
 
 class WorkspaceScreen extends StatefulWidget {
-  WorkspaceScreen({
+  const WorkspaceScreen({
     super.key,
     this.repository,
     this.preferences = const JotterPreferences(),
@@ -66,6 +66,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   final Map<String, String> _sharedOwners = {};
   StreamSubscription<Map<String, dynamic>>? _realtimeSubscription;
   final _editorUpdates = ValueNotifier<Map<String, dynamic>?>(null);
+  Timer? _versionPoll;
+  String? _editingNoteId;
+  bool _checkingVersion = false;
   ApiNoteRepository? get _api => switch (_repository) {
     ApiNoteRepository value => value,
     OfflineNoteRepository value => value.remote,
@@ -88,9 +91,34 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         setState(() {
           _notes = List.of(_offline!.cachedNotes);
           _labels = List.of(_offline!.cachedLabels);
+          final current = {for (final note in _notes) note.id: note};
+          _searchResults = _searchResults
+              ?.where((note) => current.containsKey(note.id))
+              .map((note) => current[note.id]!)
+              .toList();
         });
         if (_search.text.isNotEmpty && !_editing) _searchChanged();
       } else {
+        if (event['type'] == 'accessRevoked') {
+          final id = event['noteId'];
+          setState(() {
+            if (event['isProtected'] == true) {
+              JotterNote redact(JotterNote note) => note.id == id
+                  ? note.copyWith(
+                      isProtected: true,
+                      content: '',
+                      preview: '',
+                      contentLoaded: false,
+                    )
+                  : note;
+              _notes = _notes.map(redact).toList();
+              _searchResults = _searchResults?.map(redact).toList();
+            } else {
+              _notes.removeWhere((note) => note.id == id);
+              _searchResults?.removeWhere((note) => note.id == id);
+            }
+          });
+        }
         _editorUpdates.value = Map<String, dynamic>.from(event);
       }
     });
@@ -125,15 +153,16 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           final page = await api.request(
             'GET',
             '/api/shared-with-me',
-            query: {'limit': '100', if (cursor != null) 'cursor': cursor},
+            query: {'limit': '100', 'cursor': ?cursor},
           );
           for (final item in page['items'] as List? ?? []) {
             final owner = item['sharedBy'] as Map?;
-            if (owner != null)
+            if (owner != null) {
               sharedOwners[item['noteId'] as String] =
                   owner['displayName'] as String? ??
                   owner['email'] as String? ??
                   'Shared with you';
+            }
           }
           cursor = page['nextCursor'] as String?;
         } while (cursor != null);
@@ -147,10 +176,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         _sharedOwners.addAll(sharedOwners);
       });
     } catch (error) {
-      if (mounted && identical(api, _api))
+      if (mounted && identical(api, _api)) {
         _notify(
           'Account settings could not be refreshed. Your current preferences are still available.',
         );
+      }
     }
   }
 
@@ -170,6 +200,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     _realtimeSubscription?.cancel();
     _offline?.syncStatus.removeListener(_syncChanged);
     _editorUpdates.dispose();
+    _versionPoll?.cancel();
     _search.dispose();
     _searchFocus.dispose();
     _scroll.dispose();
@@ -389,6 +420,44 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     _editorUpdates.value = null;
     await _offline?.watchNote(isNew ? null : note.id);
     if (!mounted) return;
+    _editingNoteId = isNew ? null : note.id;
+    final api = _api;
+    if (!isNew && api != null) {
+      _versionPoll = Timer.periodic(const Duration(seconds: 25), (_) async {
+        if (_checkingVersion ||
+            !mounted ||
+            _editingNoteId != note.id ||
+            !identical(api, _api) ||
+            (_offline?.syncStatus.value.realtimeConnected ?? false) ||
+            (_offline?.syncStatus.value.isOffline ?? false)) {
+          return;
+        }
+        _checkingVersion = true;
+        try {
+          final version = await api.getNoteVersion(note.id);
+          if (mounted && _editingNoteId == note.id && version > note.version) {
+            _editorUpdates.value = {
+              'type': 'noteChanged',
+              'noteId': note.id,
+              'version': version,
+            };
+          }
+        } catch (error) {
+          if (mounted &&
+              _editingNoteId == note.id &&
+              error is RepositoryException &&
+              [403, 404, 423].contains(error.statusCode)) {
+            _editorUpdates.value = {
+              'type': 'accessRevoked',
+              'noteId': note.id,
+              'isProtected': error.statusCode == 423 || note.isProtected,
+            };
+          }
+        } finally {
+          _checkingVersion = false;
+        }
+      });
+    }
     final saved = await showNoteEditor(
       context,
       note: note,
@@ -417,6 +486,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 conflictOfNoteId: isNew ? null : note.id,
               );
               final result = await _repository.saveNote(copy, isNew: true);
+              final pendingOriginal = _offline?.pendingChanges
+                  .where(
+                    (change) => change.noteId == note.id && change.isBlocked,
+                  )
+                  .firstOrNull;
+              if (pendingOriginal != null) {
+                await _offline!.discardPending(pendingOriginal.id);
+              }
               _replace(result);
               return result;
             },
@@ -438,6 +515,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         return result;
       },
     );
+    _versionPoll?.cancel();
+    _editingNoteId = null;
     await _offline?.watchNote(null);
     if (mounted) setState(() => _editing = false);
     if (saved != null && mounted) {
@@ -526,6 +605,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       return;
     }
     if (_editing || _opening) return;
+    _editorUpdates.value = null;
     await _offline?.watchNote(note.id);
     if (!mounted) return;
     final changed = await showNoteDetailsDialog(
@@ -533,6 +613,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       repository: api,
       note: note,
       initialTab: tab,
+      updates: _editorUpdates,
     );
     await _offline?.watchNote(null);
     if (changed == true && mounted) {
@@ -714,12 +795,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         );
         if (name == null) return;
         final updated = await _repository.renameLabel(label.id, name);
-        if (mounted)
+        if (mounted) {
           setState(
             () => _labels = _labels
                 .map((item) => item.id == label.id ? updated : item)
                 .toList(),
           );
+        }
       } else {
         final count = _notes
             .where((note) => note.labelIds.contains(label.id))
@@ -1252,7 +1334,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 child: Container(
                   padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Color(0xFFE8E9E0),
+                    color: context.jotterColors.tint(const Color(0xFFE8E9E0)),
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: Column(
@@ -1365,7 +1447,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   ) => Padding(
     padding: EdgeInsets.only(bottom: 5),
     child: Material(
-      color: selected ? Color(0xFFE7E5DC) : Colors.transparent,
+      color: selected
+          ? context.jotterColors.tint(const Color(0xFFE7E5DC))
+          : Colors.transparent,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -1417,7 +1501,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     return Padding(
       padding: EdgeInsets.only(bottom: 4),
       child: Material(
-        color: selected ? Color(0xFFE7E5DC) : Colors.transparent,
+        color: selected
+            ? context.jotterColors.tint(const Color(0xFFE7E5DC))
+            : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
@@ -1697,7 +1783,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                         child: Container(
                           padding: EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: JotterColors.peach,
+                            color: context.jotterColors.tint(
+                              JotterColors.peach,
+                            ),
                             borderRadius: BorderRadius.circular(9),
                           ),
                           child: Row(

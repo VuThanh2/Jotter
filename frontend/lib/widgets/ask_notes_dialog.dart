@@ -57,12 +57,13 @@ class _AskNotesDialogState extends State<_AskNotesDialog> {
         _answeredQuestion = question;
       });
     } catch (error) {
-      if (mounted && generation == _generation)
+      if (mounted && generation == _generation) {
         setState(
           () => _error = error is RepositoryException
               ? error.message
               : 'Could not get an answer. Please try again.',
         );
+      }
     } finally {
       if (mounted && generation == _generation) setState(() => _asking = false);
     }

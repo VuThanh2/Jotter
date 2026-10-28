@@ -335,8 +335,9 @@ class ApiNoteRepository extends NoteRepository {
   }
 
   Uri _uri(String path) {
-    if (!path.startsWith('/') || path.startsWith('//'))
+    if (!path.startsWith('/') || path.startsWith('//')) {
       throw const RepositoryException('Invalid API path.');
+    }
     return Uri.parse('$_baseUri$path');
   }
 
@@ -346,8 +347,9 @@ class ApiNoteRepository extends NoteRepository {
       final response = await _client
           .get(_uri(path), headers: {'Authorization': 'Bearer $_token'})
           .timeout(const Duration(seconds: 30));
-      if (response.statusCode < 200 || response.statusCode >= 300)
+      if (response.statusCode < 200 || response.statusCode >= 300) {
         _readResponse(response);
+      }
       return response.bodyBytes;
     } on TimeoutException {
       throw const RepositoryException(
@@ -409,8 +411,9 @@ class ApiNoteRepository extends NoteRepository {
     controller = StreamController<String>(
       onListen: () async {
         try {
-          if (_closed)
+          if (_closed) {
             throw const RepositoryException('This session has ended.');
+          }
           final request = http.AbortableRequest(
             method,
             _uri(path),
@@ -425,8 +428,9 @@ class ApiNoteRepository extends NoteRepository {
           final response = await _client
               .send(request)
               .timeout(const Duration(seconds: 90));
-          if (response.statusCode < 200 || response.statusCode >= 300)
+          if (response.statusCode < 200 || response.statusCode >= 300) {
             _readResponse(await http.Response.fromStream(response));
+          }
           if (cancelled) return;
           subscription = response.stream
               .transform(utf8.decoder)

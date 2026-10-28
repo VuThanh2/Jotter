@@ -189,16 +189,19 @@ class PreviewNoteRepository extends NoteRepository {
   @override
   Future<JotterLabel> renameLabel(String id, String name) async {
     final trimmed = name.trim();
-    if (trimmed.isEmpty || trimmed.length > 50)
+    if (trimmed.isEmpty || trimmed.length > 50) {
       throw const RepositoryException('Use 1–50 characters for a label.');
+    }
     if (_labels.any(
       (label) =>
           label.id != id && label.name.toLowerCase() == trimmed.toLowerCase(),
-    ))
+    )) {
       throw const RepositoryException('A label with this name already exists.');
+    }
     final index = _labels.indexWhere((label) => label.id == id);
-    if (index < 0)
+    if (index < 0) {
       throw const RepositoryException('This label no longer exists.');
+    }
     final label = JotterLabel(id: id, name: trimmed);
     _labels[index] = label;
     return label;

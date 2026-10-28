@@ -222,10 +222,12 @@ class _AccountDialogState extends State<_AccountDialog> {
   String? _required(String? value, String label) =>
       value == null || value.trim().isEmpty ? 'Enter $label.' : null;
   String? _emailValidator(String? value) {
-    if (value == null || value.trim().isEmpty)
+    if (value == null || value.trim().isEmpty) {
       return 'Enter your email address.';
-    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value.trim()))
+    }
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value.trim())) {
       return 'Enter a valid email address.';
+    }
     return null;
   }
 

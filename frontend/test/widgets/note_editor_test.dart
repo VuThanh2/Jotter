@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jotter/data/note_repository.dart';
 import 'package:jotter/models/jotter_label.dart';
 import 'package:jotter/models/jotter_note.dart';
+import 'package:jotter/theme.dart';
 import 'package:jotter/widgets/note_editor.dart';
 
 JotterNote _note({bool canEdit = true}) => JotterNote(
@@ -26,10 +28,15 @@ Future<void> _openEditor(
   JotterNote? note,
   required Future<JotterNote> Function(JotterNote) onSave,
   Future<JotterNote> Function(JotterNote)? onSaveCopy,
+  Future<void> Function(JotterNote)? onCompare,
+  ValueListenable<Map<String, dynamic>?>? updates,
+  double noteFontSize = 16,
+  ThemeData? theme,
   ValueChanged<JotterNote?>? onClosed,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
+      theme: theme,
       home: Builder(
         builder: (context) => Scaffold(
           body: TextButton(
@@ -40,6 +47,9 @@ Future<void> _openEditor(
                 labels: const [JotterLabel(id: 'personal', name: 'Personal')],
                 onSave: onSave,
                 onSaveCopy: onSaveCopy,
+                onCompare: onCompare,
+                updates: updates,
+                noteFontSize: noteFontSize,
               );
               onClosed?.call(result);
             },
@@ -344,4 +354,185 @@ void main() {
     expect(copied?.content, 'The original thought.');
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'live permission loss preserves the draft and only allows a copy',
+    (tester) async {
+      final updates = ValueNotifier<Map<String, dynamic>?>(null);
+      addTearDown(updates.dispose);
+      var originalSaves = 0;
+      JotterNote? copied;
+      await _openEditor(
+        tester,
+        updates: updates,
+        onSave: (note) async {
+          originalSaves++;
+          return note;
+        },
+        onSaveCopy: (note) async {
+          copied = note;
+          return note.copyWith(id: 'saved-copy');
+        },
+      );
+      await tester.enterText(
+        find.byKey(const Key('note-title')),
+        'An idea worth keeping',
+      );
+      await tester.enterText(
+        find.byKey(const Key('note-content')),
+        'Keep the complete unsaved draft.',
+      );
+      updates.value = {
+        'type': 'permissionChanged',
+        'noteId': 'note-1',
+        'permission': 'ReadOnly',
+      };
+      await tester.pumpAndSettle();
+      expect(
+        _fieldValue(tester, 'note-content'),
+        'Keep the complete unsaved draft.',
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('note-content')))
+            .readOnly,
+        isTrue,
+      );
+      expect(find.byKey(const Key('save-note')), findsNothing);
+      expect(find.byKey(const Key('copy-draft')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('save-note-copy')));
+      await tester.pumpAndSettle();
+      expect(originalSaves, 0);
+      expect(copied?.title, 'An idea worth keeping');
+      expect(copied?.content, 'Keep the complete unsaved draft.');
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'live saved-version comparison receives the current unmodified draft',
+    (tester) async {
+      final updates = ValueNotifier<Map<String, dynamic>?>(null);
+      addTearDown(updates.dispose);
+      JotterNote? compared;
+      await _openEditor(
+        tester,
+        updates: updates,
+        onSave: (note) async => note,
+        onCompare: (note) async {
+          compared = note;
+        },
+      );
+      await tester.enterText(
+        find.byKey(const Key('note-content')),
+        'This is my local draft, not the server version.',
+      );
+      updates.value = {
+        'type': 'noteChanged',
+        'noteId': 'unrelated-note',
+        'version': 9,
+      };
+      await tester.pump();
+      expect(find.byKey(const Key('compare-note-version')), findsNothing);
+      updates.value = {
+        'type': 'presence',
+        'noteId': 'note-1',
+        'users': [
+          {'userId': 'friend', 'displayName': 'Alex'},
+        ],
+      };
+      await tester.pump();
+      expect(find.text('Here now: Alex'), findsOneWidget);
+      updates.value = {'type': 'noteChanged', 'noteId': 'note-1', 'version': 5};
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('compare-note-version')));
+      await tester.pumpAndSettle();
+      expect(compared?.id, 'note-1');
+      expect(compared?.version, 4);
+      expect(
+        compared?.content,
+        'This is my local draft, not the server version.',
+      );
+      expect(_fieldValue(tester, 'note-content'), compared?.content);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('a save conflict exposes comparison without discarding text', (
+    tester,
+  ) async {
+    JotterNote? compared;
+    await _openEditor(
+      tester,
+      onSave: (_) async => throw const RepositoryException(
+        'The saved note changed.',
+        code: 'VersionConflict',
+      ),
+      onCompare: (note) async {
+        compared = note;
+      },
+    );
+    await tester.enterText(
+      find.byKey(const Key('note-content')),
+      'The draft I still need.',
+    );
+    await tester.tap(find.byKey(const Key('save-note')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('compare-note-version')));
+    await tester.pumpAndSettle();
+    expect(compared?.content, 'The draft I still need.');
+    expect(_fieldValue(tester, 'note-content'), 'The draft I still need.');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'protected access invalidation removes readable content and copy controls',
+    (tester) async {
+      final updates = ValueNotifier<Map<String, dynamic>?>(null);
+      addTearDown(updates.dispose);
+      await _openEditor(
+        tester,
+        updates: updates,
+        note: _note().copyWith(isProtected: true),
+        onSave: (note) async => note,
+        onSaveCopy: (note) async => note,
+      );
+      updates.value = {
+        'type': 'accessRevoked',
+        'noteId': 'note-1',
+        'isProtected': true,
+      };
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('note-content')), findsNothing);
+      expect(find.byKey(const Key('note-title')), findsNothing);
+      expect(find.byKey(const Key('save-note-copy')), findsNothing);
+      expect(find.byKey(const Key('copy-draft')), findsNothing);
+      expect(find.text('Content hidden'), findsOneWidget);
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'saved font size and the dark palette are applied to the editor',
+    (tester) async {
+      await _openEditor(
+        tester,
+        noteFontSize: 24,
+        theme: jotterDarkTheme,
+        onSave: (note) async => note,
+      );
+      final content = tester.widget<TextField>(
+        find.byKey(const Key('note-content')),
+      );
+      expect(content.style?.fontSize, 24);
+      expect(content.style?.color, const Color(0xFFE5E7DF));
+      expect(
+        tester.widget<Dialog>(find.byType(Dialog)).backgroundColor,
+        const Color(0xFF1B201D),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

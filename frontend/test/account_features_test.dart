@@ -208,8 +208,9 @@ void main() {
     final repo = repository(
       MockClient((request) async {
         if (request.url.path.endsWith('/preferences')) {
-          if (request.method == 'PUT')
+          if (request.method == 'PUT') {
             expect(jsonDecode(request.body), preferences.toJson());
+          }
           return jsonResponse(preferences.toJson());
         }
         expect(request.method, 'PUT');
@@ -235,6 +236,7 @@ void main() {
           expect(request.headers['authorization'], 'Bearer old-token');
           if (request.method == 'GET') {
             expect(request.url.path, '/api/users/user-1/avatar');
+            expect(request.url.queryParameters['v'], 'new-photo');
             return http.Response.bytes(bytes, 200);
           }
           expect(request.method, 'DELETE');
@@ -243,7 +245,7 @@ void main() {
         }),
       );
       repo.account = repo.account.copyWith(
-        avatarUrl: '/api/users/user-1/avatar',
+        avatarUrl: '/api/users/user-1/avatar?v=new-photo',
       );
       expect(await repo.getAvatar(), bytes);
       await repo.removeAvatar();
@@ -321,8 +323,9 @@ void main() {
       MockClient((request) async {
         expect(request.url.path, '/api/me/preferences');
         savedCount++;
-        if (savedCount == 1)
+        if (savedCount == 1) {
           return jsonResponse({'title': 'Preferences unavailable.'}, 503);
+        }
         return jsonResponse(jsonDecode(request.body));
       }),
       activated: true,

@@ -83,11 +83,13 @@ class _AccountSettingsState extends State<_AccountSettings> {
     final generation = _avatarGeneration;
     try {
       final bytes = await widget.repository.getAvatar();
-      if (mounted && generation == _avatarGeneration)
+      if (mounted && generation == _avatarGeneration) {
         setState(() => _avatar = bytes);
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = 'Your profile photo could not be loaded.');
+      }
     }
   }
 
@@ -129,27 +131,30 @@ class _AccountSettingsState extends State<_AccountSettings> {
       );
       if (file == null || !mounted) return;
       final size = await file.length();
-      if (size <= 0 || size > 5 * 1024 * 1024)
+      if (size <= 0 || size > 5 * 1024 * 1024) {
         throw const RepositoryException('Choose an image smaller than 5 MB.');
+      }
       final bytes = await file.readAsBytes();
       _avatarGeneration++;
       await widget.repository.uploadAvatar(bytes, file.name);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _avatar = bytes;
           _notice = 'Your profile photo has been updated.';
         });
+      }
     });
   }
 
   Future<void> _removeAvatar() async => _run(() async {
     _avatarGeneration++;
     await widget.repository.removeAvatar();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _avatar = null;
         _notice = 'Your profile photo has been removed.';
       });
+    }
   });
   Future<void> _savePreferences() async {
     if (!_preferencesForm.currentState!.validate()) return;
@@ -190,8 +195,9 @@ class _AccountSettingsState extends State<_AccountSettings> {
       context,
       repository: widget.repository,
     );
-    if (mounted && result == true)
+    if (mounted && result == true) {
       setState(() => _notice = 'Your email is confirmed.');
+    }
   }
 
   Widget _sectionTitle(String title, String description) => Padding(
@@ -231,8 +237,8 @@ class _AccountSettingsState extends State<_AccountSettings> {
                 radius: 42,
                 backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 foregroundImage: _avatar == null ? null : MemoryImage(_avatar!),
-                child: Text(initial, style: const TextStyle(fontSize: 28)),
                 onForegroundImageError: _avatar == null ? null : (_, _) {},
+                child: Text(initial, style: const TextStyle(fontSize: 28)),
               ),
             ),
             const SizedBox(height: 12),
@@ -506,12 +512,15 @@ class _AccountSettingsState extends State<_AccountSettings> {
     ],
     decoration: InputDecoration(labelText: label),
     validator: (value) {
-      if (value == null || value.isEmpty)
+      if (value == null || value.isEmpty) {
         return 'Enter ${label.toLowerCase()}.';
-      if (confirm && value != _newPassword.text)
+      }
+      if (confirm && value != _newPassword.text) {
         return 'The passwords do not match.';
-      if (controller == _newPassword && value == _currentPassword.text)
+      }
+      if (controller == _newPassword && value == _currentPassword.text) {
         return 'Choose a different new password.';
+      }
       return null;
     },
   );

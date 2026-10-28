@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -264,13 +263,14 @@ class _SyncDialogState extends State<_SyncDialog> {
                                                             ],
                                                           ),
                                                     );
-                                                if (discard == true)
+                                                if (discard == true) {
                                                   await _run(
                                                     () => widget.repository
                                                         .discardPending(
                                                           change.id,
                                                         ),
                                                   );
+                                                }
                                               },
                                         child: const Text('Discard'),
                                       ),

@@ -8,16 +8,19 @@ import 'note_repository.dart';
 const maxAttachmentBytes = 25 * 1024 * 1024;
 
 void validateAttachment(Uint8List bytes, String filename) {
-  if (filename.trim().isEmpty || filename.length > 255)
+  if (filename.trim().isEmpty || filename.length > 255) {
     throw const RepositoryException(
       'Use a file name between 1 and 255 characters.',
     );
-  if (bytes.isEmpty)
+  }
+  if (bytes.isEmpty) {
     throw const RepositoryException('Empty files cannot be attached.');
-  if (bytes.length > maxAttachmentBytes)
+  }
+  if (bytes.length > maxAttachmentBytes) {
     throw const RepositoryException(
       'Each attachment must be 25 MB or smaller.',
     );
+  }
   const signatures = [
     [0x4d, 0x5a],
     [0x7f, 0x45, 0x4c, 0x46],
@@ -34,8 +37,9 @@ void validateAttachment(Uint8List bytes, String filename) {
           signature.length,
           (index) => bytes[index] == signature[index],
         ).every((value) => value),
-  ))
+  )) {
     throw const RepositoryException('Executable files cannot be attached.');
+  }
 }
 
 extension NoteFeaturesApi on ApiNoteRepository {
@@ -85,10 +89,11 @@ extension NoteFeaturesApi on ApiNoteRepository {
         .where((email) => email.isNotEmpty)
         .toSet()
         .toList();
-    if (recipients.isEmpty || recipients.length > 20)
+    if (recipients.isEmpty || recipients.length > 20) {
       throw const RepositoryException(
         'Invite between 1 and 20 registered email addresses at a time.',
       );
+    }
     final json = await request(
       'POST',
       '/api/notes/$noteId/shares',
@@ -193,10 +198,11 @@ extension NoteFeaturesApi on ApiNoteRepository {
       decodeSummaryEvents(stream('POST', '/api/notes/$noteId/summary'));
 
   Future<NotesAnswer> askNotes(String question) async {
-    if (question.trim().isEmpty || question.length > 1000)
+    if (question.trim().isEmpty || question.length > 1000) {
       throw const RepositoryException(
         'Ask a question between 1 and 1,000 characters.',
       );
+    }
     return NotesAnswer.fromJson(
       await request('POST', '/api/ai/ask', body: {'question': question.trim()}),
     );
@@ -204,17 +210,20 @@ extension NoteFeaturesApi on ApiNoteRepository {
 }
 
 void _validatePermission(String permission) {
-  if (!const ['ReadOnly', 'Edit'].contains(permission))
+  if (!const ['ReadOnly', 'Edit'].contains(permission)) {
     throw const RepositoryException('Choose view-only or editing access.');
+  }
 }
 
 void _validatePassword(String password, String confirmation) {
-  if (password.length < 4 || password.length > 128)
+  if (password.length < 4 || password.length > 128) {
     throw const RepositoryException(
       'A note password must contain 4–128 characters.',
     );
-  if (password != confirmation)
+  }
+  if (password != confirmation) {
     throw const RepositoryException('The passwords do not match.');
+  }
 }
 
 /// Decodes SSE across arbitrary HTTP chunk boundaries, including split CRLFs.
@@ -257,8 +266,9 @@ Stream<SummaryEvent> decodeSummaryEvents(Stream<String> source) async* {
       data.add(value.startsWith(' ') ? value.substring(1) : value);
     }
   }
-  if (!completed)
+  if (!completed) {
     throw const RepositoryException(
       'The summary stream ended early. Please try again.',
     );
+  }
 }

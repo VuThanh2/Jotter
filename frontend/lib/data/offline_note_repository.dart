@@ -125,8 +125,9 @@ class OfflineNoteRepository extends NoteRepository {
       final serialized = await _store.read(storageKey);
       if (serialized == null) return;
       final snapshot = jsonDecode(serialized) as Map<String, dynamic>;
-      if (snapshot['schema'] != 1)
+      if (snapshot['schema'] != 1) {
         throw const FormatException('Unsupported workspace cache');
+      }
       _cursor = (snapshot['cursor'] as num?)?.toInt() ?? 0;
       _lastSynced = DateTime.tryParse(
         snapshot['lastSyncedAt'] as String? ?? '',
@@ -151,8 +152,9 @@ class OfflineNoteRepository extends NoteRepository {
         // A corrupted or old snapshot must never resurrect private note content.
         final draft = operation.payload['note'];
         if (draft is Map &&
-            (draft['isProtected'] == true || draft['isOwned'] == false))
+            (draft['isProtected'] == true || draft['isOwned'] == false)) {
           continue;
+        }
         _outbox.add(operation);
       }
       for (final item in snapshot['shares'] as List<dynamic>? ?? []) {
@@ -174,11 +176,12 @@ class OfflineNoteRepository extends NoteRepository {
 
   Future<void> _persist() async {
     if (_disposed) return;
-    if (!_storageAvailable)
+    if (!_storageAvailable) {
       throw const RepositoryException(
         'Device storage is unavailable. Keep your draft open until you are online.',
         code: 'StorageUnavailable',
       );
+    }
     final snapshot = jsonEncode({
       'schema': 1,
       'cursor': _cursor,
@@ -263,14 +266,16 @@ class OfflineNoteRepository extends NoteRepository {
     if (_hasPendingNote(id) &&
         pending != null &&
         pending.isOwned &&
-        !pending.isProtected)
+        !pending.isProtected) {
       return pending;
+    }
     try {
       final note = await remote.getNote(id);
-      if (_disposed)
+      if (_disposed) {
         throw const RepositoryException(
           'This workspace has closed. Sign in again.',
         );
+      }
       _notes[id] = note;
       _isOffline = false;
       await _persistIfAvailable();
@@ -301,8 +306,9 @@ class OfflineNoteRepository extends NoteRepository {
       if (pending != null &&
           pending.isOwned &&
           !pending.isProtected &&
-          pending.contentLoaded)
+          pending.contentLoaded) {
         return pending;
+      }
       throw const RepositoryException(
         'This note needs an online connection. Protected and shared note content is not stored offline.',
         code: 'NetworkUnavailable',
@@ -319,10 +325,11 @@ class OfflineNoteRepository extends NoteRepository {
   @override
   Future<JotterNote> saveNote(JotterNote note, {bool isNew = false}) async {
     validateNote(note);
-    if (!note.canEdit || !note.contentLoaded)
+    if (!note.canEdit || !note.contentLoaded) {
       throw const RepositoryException(
         'Open the complete editable note before saving.',
       );
+    }
     if (note.isProtected || !note.isOwned || !_storageAvailable) {
       final saved = await remote.saveNote(note, isNew: isNew);
       _notes[saved.id] = saved;
@@ -360,19 +367,21 @@ class OfflineNoteRepository extends NoteRepository {
       rethrow;
     }
     await synchronize();
-    if (operation.error != null)
+    if (operation.error != null) {
       throw RepositoryException(
         operation.error!,
         code: operation.code,
         statusCode: operation.statusCode,
       );
+    }
     return _notes[note.id] ?? local;
   }
 
   @override
   Future<JotterNote> pinNote(JotterNote note, bool pinned) async {
-    if (!note.isOwned)
+    if (!note.isOwned) {
       throw const RepositoryException('Only the owner can pin this note.');
+    }
     final updated = note.copyWith(isPinned: pinned);
     await _queueMetadata('pin', {
       'noteId': note.id,
@@ -385,8 +394,9 @@ class OfflineNoteRepository extends NoteRepository {
   @override
   Future<void> deleteNote(String id) async {
     final note = _notes[id];
-    if (note != null && !note.isOwned)
+    if (note != null && !note.isOwned) {
       throw const RepositoryException('Only the owner can delete this note.');
+    }
     await _queueMetadata('delete', {
       'noteId': id,
       'title': note?.title ?? 'Delete note',
@@ -396,14 +406,16 @@ class OfflineNoteRepository extends NoteRepository {
   @override
   Future<JotterLabel> createLabel(String name) async {
     final trimmed = name.trim();
-    if (trimmed.isEmpty || trimmed.length > 50)
+    if (trimmed.isEmpty || trimmed.length > 50) {
       throw const RepositoryException(
         'Use a label name between 1 and 50 characters.',
       );
+    }
     if (_labels.values.any(
       (label) => label.name.toLowerCase() == trimmed.toLowerCase(),
-    ))
+    )) {
       throw const RepositoryException('A label with this name already exists.');
+    }
     final label = JotterLabel(id: generateUuid(), name: trimmed);
     await _queueMetadata('createLabel', {
       'labelId': label.id,
@@ -415,10 +427,11 @@ class OfflineNoteRepository extends NoteRepository {
   @override
   Future<JotterLabel> renameLabel(String id, String name) async {
     final trimmed = name.trim();
-    if (trimmed.isEmpty || trimmed.length > 50)
+    if (trimmed.isEmpty || trimmed.length > 50) {
       throw const RepositoryException(
         'Use a label name between 1 and 50 characters.',
       );
+    }
     final label = JotterLabel(id: id, name: trimmed);
     await _queueMetadata('renameLabel', {
       'labelId': id,
@@ -445,8 +458,9 @@ class OfflineNoteRepository extends NoteRepository {
 
   @override
   Future<JotterNote> setLabels(JotterNote note, List<String> ids) async {
-    if (!note.isOwned)
+    if (!note.isOwned) {
       throw const RepositoryException('Only the owner can organize this note.');
+    }
     final updated = note.copyWith(labelIds: ids);
     await _queueMetadata('labels', {
       'noteId': note.id,
@@ -477,12 +491,13 @@ class OfflineNoteRepository extends NoteRepository {
     update();
     await _persist();
     await synchronize();
-    if (operation.error != null)
+    if (operation.error != null) {
       throw RepositoryException(
         operation.error!,
         code: operation.code,
         statusCode: operation.statusCode,
       );
+    }
   }
 
   @override
@@ -537,8 +552,9 @@ class OfflineNoteRepository extends NoteRepository {
       _isOffline = false;
       if (_storageAvailable) await _persist();
       if (_error == null ||
-          !_outbox.any((operation) => operation.error != null))
+          !_outbox.any((operation) => operation.error != null)) {
         _error = null;
+      }
       if (!_disposed) _events.add({'type': 'workspaceSynced'});
     } catch (error) {
       if (_networkFailure(error)) {
@@ -561,8 +577,9 @@ class OfflineNoteRepository extends NoteRepository {
         if (operation.noteId != null) blockedNotes.add(operation.noteId!);
         continue;
       }
-      if (operation.noteId != null && blockedNotes.contains(operation.noteId))
+      if (operation.noteId != null && blockedNotes.contains(operation.noteId)) {
         continue;
+      }
       try {
         final saved = await _sendOperation(operation);
         if (_disposed) return;
@@ -603,8 +620,9 @@ class OfflineNoteRepository extends NoteRepository {
       operation.payload['isNew'] = false;
     }
     final local = _notes[saved.id];
-    if (local != null && _hasPendingNote(saved.id))
+    if (local != null && _hasPendingNote(saved.id)) {
       _notes[saved.id] = local.copyWith(version: saved.version);
+    }
   }
 
   Future<JotterNote?> _sendOperation(_QueuedOperation operation) async {
@@ -687,15 +705,18 @@ class OfflineNoteRepository extends NoteRepository {
   Future<void> _pull() async {
     var first = true;
     var restarts = 0;
-    final previousProtection = {for (final note in _notes.values) note.id: note.isProtected};
+    final previousProtection = {
+      for (final note in _notes.values) note.id: note.isProtected,
+    };
     while (!_disposed) {
       final page = await remote.pullChanges(since: _cursor);
       if (_disposed) return;
       if (page['fullResyncRequired'] == true) {
-        if (++restarts > 1)
+        if (++restarts > 1) {
           throw const RepositoryException(
             'The server could not establish a fresh sync snapshot.',
           );
+        }
         _cursor = 0;
         first = true;
         continue;
@@ -715,7 +736,9 @@ class OfflineNoteRepository extends NoteRepository {
         }
         final protected = item['isProtected'] == true;
         final owned = item['ownerId'] == remote.account.id;
-        final newlyProtected = protected && (_notes[id]?.isProtected ?? previousProtection[id]) == false;
+        final newlyProtected =
+            protected &&
+            (_notes[id]?.isProtected ?? previousProtection[id]) == false;
         previousProtection[id] = protected;
         if (protected) {
           // A newly enabled password must scrub a previously cached body now,
@@ -737,15 +760,20 @@ class OfflineNoteRepository extends NoteRepository {
             operation.code = 'ProtectedDraft';
             _volatileProtectedDrafts.add(operation);
             _outbox.remove(operation);
-            if (!_disposed)
+            if (!_disposed) {
               _events.add({
                 'type': 'protectedDraftNeedsAttention',
                 'noteId': id,
               });
+            }
           }
         }
         if (newlyProtected && !_disposed) {
-          _events.add({'type': 'accessRevoked', 'noteId': id, 'isProtected': true});
+          _events.add({
+            'type': 'accessRevoked',
+            'noteId': id,
+            'isProtected': true,
+          });
         }
         if (_hasPendingNote(id) && !protected) continue;
         final content = protected ? '' : item['content'] as String? ?? '';
@@ -788,8 +816,9 @@ class OfflineNoteRepository extends NoteRepository {
       for (final share in _shares.values) {
         final id = share['noteId'] as String;
         if (share['recipientUserId'] != remote.account.id ||
-            share['revokedAt'] == null)
+            share['revokedAt'] == null) {
           continue;
+        }
         final stillShared = _shares.values.any(
           (grant) =>
               grant['noteId'] == id &&
@@ -809,10 +838,11 @@ class OfflineNoteRepository extends NoteRepository {
         );
       }
       final next = (page['nextChangeSeq'] as num?)?.toInt() ?? _cursor;
-      if (page['hasMore'] == true && next <= _cursor)
+      if (page['hasMore'] == true && next <= _cursor) {
         throw const RepositoryException(
           'The server returned an invalid sync cursor.',
         );
+      }
       _cursor = next;
       await _persistIfAvailable();
       if (page['hasMore'] != true) break;
@@ -846,16 +876,24 @@ class OfflineNoteRepository extends NoteRepository {
       ..._outbox,
       ..._volatileProtectedDrafts,
     ].where((item) => item.id == operationId).firstOrNull;
-    if (operation == null || operation.kind != 'save')
+    if (operation == null || operation.kind != 'save') {
       throw const RepositoryException('This change has no note draft to copy.');
-    final latest = _outbox.where((item) => item.kind == 'save' && item.noteId == operation.noteId).lastOrNull ?? operation;
+    }
+    final latest =
+        _outbox
+            .where(
+              (item) => item.kind == 'save' && item.noteId == operation.noteId,
+            )
+            .lastOrNull ??
+        operation;
     final original = JotterNote.fromJson(
       Map<String, dynamic>.from(latest.payload['note'] as Map),
     );
-    if (original.isProtected)
+    if (original.isProtected) {
       throw const RepositoryException(
         'Protected notes cannot be copied into an unprotected offline note.',
       );
+    }
     final now = DateTime.now();
     final title = original.title.isEmpty ? 'Untitled note' : original.title;
     final copy = original.copyWith(
@@ -918,17 +956,20 @@ class OfflineNoteRepository extends NoteRepository {
     if (_watchedNote == noteId) return;
     final previous = _watchedNote;
     _watchedNote = noteId;
-    if (_realtimeConnected && previous != null)
+    if (_realtimeConnected && previous != null) {
       _sendSocket({'type': 'leave', 'noteId': previous});
-    if (_realtimeConnected && noteId != null)
+    }
+    if (_realtimeConnected && noteId != null) {
       _sendSocket({'type': 'join', 'noteId': noteId});
-    else if (noteId != null && _enableRealtime)
+    } else if (noteId != null && _enableRealtime) {
       unawaited(_connectRealtime());
+    }
   }
 
   Future<void> _connectRealtime() async {
-    if (_disposed || !_enableRealtime || _connecting || _realtimeConnected)
+    if (_disposed || !_enableRealtime || _connecting || _realtimeConnected) {
       return;
+    }
     _connecting = true;
     try {
       final uri = await remote.issueRealtimeConnectionUri();
@@ -948,8 +989,9 @@ class OfflineNoteRepository extends NoteRepository {
         onError: (Object _) => _socketEnded(),
         cancelOnError: true,
       );
-      if (_watchedNote != null)
+      if (_watchedNote != null) {
         _sendSocket({'type': 'join', 'noteId': _watchedNote});
+      }
       _ping?.cancel();
       _ping = Timer.periodic(
         const Duration(seconds: 25),
@@ -997,15 +1039,21 @@ class OfflineNoteRepository extends NoteRepository {
         }
       } else if (type == 'permissionChanged' && id != null) {
         final note = _notes[id];
-        if (note != null)
+        if (note != null) {
           _notes[id] = note.copyWith(
             canEdit: ['Owner', 'Edit'].contains(message['permission']),
           );
+        }
         _persistInBackground();
       }
       _events.add(message);
-      if (['noteChanged', 'permissionChanged', 'accessRevoked'].contains(type))
+      if ([
+        'noteChanged',
+        'permissionChanged',
+        'accessRevoked',
+      ].contains(type)) {
         unawaited(synchronize());
+      }
     } catch (_) {
       /* Ignore malformed transport messages without losing the current draft. */
     }
