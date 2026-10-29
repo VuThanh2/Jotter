@@ -1246,13 +1246,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                 ],
               ),
             ),
-            if (_repository.isPreview)
+            // On short windows the card would squeeze the label list out of view.
+            if (_repository.isPreview &&
+                MediaQuery.sizeOf(context).height >= 900)
               Padding(
                 padding: EdgeInsets.fromLTRB(22, 12, 22, 22),
                 child: Container(
                   padding: EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Color(0xFFE8E9E0),
+                    color: context.jotterColors.panel,
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: Column(
@@ -1365,7 +1367,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   ) => Padding(
     padding: EdgeInsets.only(bottom: 5),
     child: Material(
-      color: selected ? Color(0xFFE7E5DC) : Colors.transparent,
+      color: selected ? context.jotterColors.selected : Colors.transparent,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -1417,7 +1419,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     return Padding(
       padding: EdgeInsets.only(bottom: 4),
       child: Material(
-        color: selected ? Color(0xFFE7E5DC) : Colors.transparent,
+        color: selected ? context.jotterColors.selected : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),

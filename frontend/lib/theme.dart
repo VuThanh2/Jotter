@@ -150,5 +150,8 @@ class JotterPalette {
   Color get ink => dark ? const Color(0xFFE5E7DF) : JotterColors.ink;
   Color get muted => dark ? const Color(0xFFB0B7AB) : JotterColors.muted;
   Color get line => dark ? const Color(0xFF3D453E) : JotterColors.line;
+  Color get selected =>
+      dark ? const Color(0xFF323B33) : const Color(0xFFE7E5DC);
+  Color get panel => dark ? const Color(0xFF2B332C) : const Color(0xFFE8E9E0);
   Color tint(Color color) => dark ? Color.lerp(color, paper, .85)! : color;
 }

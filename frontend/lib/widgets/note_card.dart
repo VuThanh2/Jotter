@@ -146,17 +146,29 @@ class _NoteCardState extends State<NoteCard> {
       ),
       SizedBox(height: 11),
       Expanded(
-        child: Text(
-          note.isProtected
-              ? 'A little privacy for your thoughts.\nOpen to unlock this note.'
-              : (note.contentLoaded ? note.content : note.preview),
-          maxLines: 5,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.65,
-            color: context.jotterColors.muted,
-          ),
+        // Show only the lines that fit, so the last one is never cut in half.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final lineHeight =
+                MediaQuery.textScalerOf(context).scale(13) * 1.65;
+            final lines = (constraints.maxHeight / lineHeight).floor().clamp(
+              0,
+              5,
+            );
+            if (lines == 0) return SizedBox.shrink();
+            return Text(
+              note.isProtected
+                  ? 'A little privacy for your thoughts.\nOpen to unlock this note.'
+                  : (note.contentLoaded ? note.content : note.preview),
+              maxLines: lines,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.65,
+                color: context.jotterColors.muted,
+              ),
+            );
+          },
         ),
       ),
       SizedBox(height: 14),
