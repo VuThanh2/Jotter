@@ -250,7 +250,11 @@ class ApiNoteRepository extends NoteRepository {
       body: {'isPinned': pinned},
       idempotent: true,
     );
-    final saved = note.copyWith(isPinned: pinned);
+    final saved = note.copyWith(
+      isPinned: pinned,
+      pinnedAt: pinned ? DateTime.now() : null,
+      clearPinnedAt: !pinned,
+    );
     _knownNotes[note.id] = saved;
     return saved;
   }
@@ -393,16 +397,27 @@ class ApiNoteRepository extends NoteRepository {
     String field = 'file',
   }) async {
     if (_closed) throw const RepositoryException('This session has ended.');
+    return uploadFiles(path, [(bytes: bytes, name: filename)], field: field);
+  }
+
+  Future<Map<String, dynamic>> uploadFiles(
+    String path,
+    List<({Uint8List bytes, String name})> files, {
+    String field = 'files',
+  }) async {
+    if (_closed) throw const RepositoryException('This session has ended.');
     final upload = http.MultipartRequest('POST', _uri(path));
     upload.headers.addAll({
       'Authorization': 'Bearer $_token',
       'Idempotency-Key': newNoteId(),
     });
-    upload.files.add(
-      http.MultipartFile.fromBytes(field, bytes, filename: filename),
-    );
+    for (final file in files) {
+      upload.files.add(
+        http.MultipartFile.fromBytes(field, file.bytes, filename: file.name),
+      );
+    }
     try {
-      return _readResponse(
+      return _readAuthenticated(
         await _client
             .send(upload)
             .then(http.Response.fromStream)
@@ -506,6 +521,7 @@ class ApiNoteRepository extends NoteRepository {
           ? DateTime.parse(data['createdAt'] as String)
           : previous?.createdAt ?? DateTime.parse(data['updatedAt'] as String),
       isPinned: data['isPinned'] as bool? ?? false,
+      pinnedAt: DateTime.tryParse(data['pinnedAt'] as String? ?? ''),
       isProtected: protected,
       isShared: data['isShared'] as bool? ?? previous?.isShared ?? !owned,
       isOwned: owned,
