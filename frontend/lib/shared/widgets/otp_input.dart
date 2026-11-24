@@ -49,12 +49,16 @@ class ResendCodeButton extends StatefulWidget {
     required this.onResend,
     this.initialCooldown = 0,
     this.label = 'Resend code',
+    this.onSent,
   });
 
   /// Returns the cooldown in seconds before the next resend is allowed.
   final Future<int> Function() onResend;
   final int initialCooldown;
   final String label;
+
+  /// Runs after a new code was sent, e.g. to clear the stale code field.
+  final VoidCallback? onSent;
 
   @override
   State<ResendCodeButton> createState() => _ResendCodeButtonState();
@@ -84,7 +88,14 @@ class _ResendCodeButtonState extends State<ResendCodeButton> {
   Future<void> _resend() async {
     setState(() => _sending = true);
     try {
-      _start(await widget.onResend());
+      final cooldown = await widget.onResend();
+      _start(cooldown);
+      if (cooldown > 0 && mounted) {
+        widget.onSent?.call();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('A new code is on its way.')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }

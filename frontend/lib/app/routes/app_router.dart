@@ -21,27 +21,22 @@ import 'package:jotter/modules/profile/edit_profile/edit_profile_page.dart';
 import 'package:jotter/modules/profile/preferences/preferences_page.dart';
 import 'package:jotter/modules/sharing/shared_with_me/shared_with_me_page.dart';
 import 'package:jotter/shared/lib/session.dart';
+import 'package:jotter/shared/widgets/state_views.dart';
 
 GoRouter createAppRouter(SessionCubit session) => GoRouter(
   initialLocation: AppRoutes.notes,
   refreshListenable: _StreamListenable(session.stream),
   redirect: (context, state) => _guard(session.state, state),
+  errorBuilder: (context, _) => const _NotFoundPage(),
   routes: [
     GoRoute(path: '/', redirect: (_, _) => AppRoutes.notes),
-    GoRoute(
-      path: AppRoutes.startup,
-      builder: (_, _) => const StartupPage(),
-    ),
+    GoRoute(path: AppRoutes.startup, builder: (_, _) => const StartupPage()),
     GoRoute(
       path: AppRoutes.login,
-      builder: (_, state) => LoginPage(
-        passwordReset: state.uri.queryParameters['reset'] == '1',
-      ),
+      builder: (_, state) =>
+          LoginPage(passwordReset: state.uri.queryParameters['reset'] == '1'),
     ),
-    GoRoute(
-      path: AppRoutes.register,
-      builder: (_, _) => const RegisterPage(),
-    ),
+    GoRoute(path: AppRoutes.register, builder: (_, _) => const RegisterPage()),
     GoRoute(
       path: AppRoutes.forgotPassword,
       builder: (_, _) => const ForgotPasswordPage(),
@@ -67,10 +62,7 @@ GoRouter createAppRouter(SessionCubit session) => GoRouter(
         ),
         StatefulShellBranch(
           routes: [
-            GoRoute(
-              path: AppRoutes.ask,
-              builder: (_, _) => const AskAiPage(),
-            ),
+            GoRoute(path: AppRoutes.ask, builder: (_, _) => const AskAiPage()),
           ],
         ),
       ],
@@ -103,10 +95,7 @@ GoRouter createAppRouter(SessionCubit session) => GoRouter(
       path: AppRoutes.account,
       builder: (_, _) => const AccountPage(),
       routes: [
-        GoRoute(
-          path: 'profile',
-          builder: (_, _) => const EditProfilePage(),
-        ),
+        GoRoute(path: 'profile', builder: (_, _) => const EditProfilePage()),
         GoRoute(
           path: 'preferences',
           builder: (_, _) => const PreferencesPage(),
@@ -115,10 +104,7 @@ GoRouter createAppRouter(SessionCubit session) => GoRouter(
           path: 'password',
           builder: (_, _) => const ChangePasswordPage(),
         ),
-        GoRoute(
-          path: 'activation',
-          builder: (_, _) => const ActivationPage(),
-        ),
+        GoRoute(path: 'activation', builder: (_, _) => const ActivationPage()),
       ],
     ),
   ],
@@ -135,7 +121,9 @@ String? _guard(SessionState session, GoRouterState state) {
     case SessionSignedOut(:final resumeLocation):
       if (isPublic) return null;
       final target = path == AppRoutes.startup ? from : state.uri.toString();
-      return resumeLocation && _isSafeTarget(target) && target != AppRoutes.notes
+      return resumeLocation &&
+              _isSafeTarget(target) &&
+              target != AppRoutes.notes
           ? _withFrom(AppRoutes.login, target!)
           : AppRoutes.login;
     case SessionActive():
@@ -170,4 +158,22 @@ class _StreamListenable extends ChangeNotifier {
     _subscription.cancel();
     super.dispose();
   }
+}
+
+/// Shown for typed or stale web URLs that match no route.
+class _NotFoundPage extends StatelessWidget {
+  const _NotFoundPage();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: EmptyView(
+      icon: Icons.explore_off_outlined,
+      title: 'Page not found',
+      message: 'This address does not lead anywhere in Jotter.',
+      action: FilledButton(
+        onPressed: () => context.go(AppRoutes.notes),
+        child: const Text('Go to notes'),
+      ),
+    ),
+  );
 }

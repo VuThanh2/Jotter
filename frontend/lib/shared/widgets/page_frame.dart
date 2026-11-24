@@ -12,6 +12,7 @@ class PageFrame extends StatelessWidget {
     this.maxWidth = 560,
     this.actions = const [],
     this.scrollable = true,
+    this.banner,
   });
 
   final String title;
@@ -20,6 +21,9 @@ class PageFrame extends StatelessWidget {
   final double maxWidth;
   final List<Widget> actions;
   final bool scrollable;
+
+  /// Full-width strip pinned under the app bar, e.g. the unverified notice.
+  final Widget? banner;
 
   @override
   Widget build(BuildContext context) {
@@ -37,15 +41,21 @@ class PageFrame extends StatelessWidget {
       appBar: AppBar(
         title: Text(title),
         leading: BackButton(
-          onPressed: () => context.canPop()
-              ? context.pop()
-              : context.go(fallbackRoute),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go(fallbackRoute),
         ),
         actions: actions,
       ),
-      body: SafeArea(
-        top: false,
-        child: scrollable ? SingleChildScrollView(child: body) : body,
+      body: Column(
+        children: [
+          ?banner,
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: scrollable ? SingleChildScrollView(child: body) : body,
+            ),
+          ),
+        ],
       ),
     );
   }
