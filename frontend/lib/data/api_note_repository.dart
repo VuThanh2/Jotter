@@ -17,8 +17,31 @@ class ApiNoteRepository extends NoteRepository {
   final http.Client _client;
   String _token;
   JotterAccount account;
+
+  /// Called whenever the server rotates the bearer (activation, password change).
+  void Function(String token)? onAccessTokenChanged;
+
+  /// Called when an authenticated request is rejected with 401.
+  void Function()? onUnauthorized;
+
   String get baseUrl => _baseUri.toString();
-  void replaceAccessToken(String token) => _token = token;
+  String get accessToken => _token;
+
+  void replaceAccessToken(String token) {
+    _token = token;
+    onAccessTokenChanged?.call(token);
+  }
+
+  static ApiNoteRepository restore({
+    required String baseUrl,
+    required String accessToken,
+    required JotterAccount account,
+    http.Client? client,
+  }) => fromSession(
+    baseUrl: baseUrl,
+    session: {'accessToken': accessToken, 'user': account.toJson()},
+    client: client,
+  );
 
   static ApiNoteRepository fromSession({
     required String baseUrl,
@@ -227,7 +250,7 @@ class ApiNoteRepository extends NoteRepository {
       body: {'isPinned': pinned},
       idempotent: true,
     );
-    final saved = note.copyWith(isPinned: pinned);
+    final saved = note.withPin(pinned);
     _knownNotes[note.id] = saved;
     return saved;
   }
@@ -346,8 +369,9 @@ class ApiNoteRepository extends NoteRepository {
       final response = await _client
           .get(_uri(path), headers: {'Authorization': 'Bearer $_token'})
           .timeout(const Duration(seconds: 30));
-      if (response.statusCode < 200 || response.statusCode >= 300)
-        _readResponse(response);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        _readAuthenticated(response);
+      }
       return response.bodyBytes;
     } on TimeoutException {
       throw const RepositoryException(
@@ -369,16 +393,27 @@ class ApiNoteRepository extends NoteRepository {
     String field = 'file',
   }) async {
     if (_closed) throw const RepositoryException('This session has ended.');
+    return uploadFiles(path, [(bytes: bytes, name: filename)], field: field);
+  }
+
+  Future<Map<String, dynamic>> uploadFiles(
+    String path,
+    List<({Uint8List bytes, String name})> files, {
+    String field = 'files',
+  }) async {
+    if (_closed) throw const RepositoryException('This session has ended.');
     final upload = http.MultipartRequest('POST', _uri(path));
     upload.headers.addAll({
       'Authorization': 'Bearer $_token',
       'Idempotency-Key': newNoteId(),
     });
-    upload.files.add(
-      http.MultipartFile.fromBytes(field, bytes, filename: filename),
-    );
+    for (final file in files) {
+      upload.files.add(
+        http.MultipartFile.fromBytes(field, file.bytes, filename: file.name),
+      );
+    }
     try {
-      return _readResponse(
+      return _readAuthenticated(
         await _client
             .send(upload)
             .then(http.Response.fromStream)
@@ -425,8 +460,9 @@ class ApiNoteRepository extends NoteRepository {
           final response = await _client
               .send(request)
               .timeout(const Duration(seconds: 90));
-          if (response.statusCode < 200 || response.statusCode >= 300)
-            _readResponse(await http.Response.fromStream(response));
+          if (response.statusCode < 200 || response.statusCode >= 300) {
+            _readAuthenticated(await http.Response.fromStream(response));
+          }
           if (cancelled) return;
           subscription = response.stream
               .transform(utf8.decoder)
@@ -481,6 +517,7 @@ class ApiNoteRepository extends NoteRepository {
           ? DateTime.parse(data['createdAt'] as String)
           : previous?.createdAt ?? DateTime.parse(data['updatedAt'] as String),
       isPinned: data['isPinned'] as bool? ?? false,
+      pinnedAt: DateTime.tryParse(data['pinnedAt'] as String? ?? ''),
       isProtected: protected,
       isShared: data['isShared'] as bool? ?? previous?.isShared ?? !owned,
       isOwned: owned,
@@ -519,7 +556,7 @@ class ApiNoteRepository extends NoteRepository {
           .send(request)
           .then(http.Response.fromStream)
           .timeout(Duration(seconds: path == '/api/ai/ask' ? 90 : 15));
-      final data = _readResponse(response);
+      final data = _readAuthenticated(response);
       _pendingOperations.remove(operation);
       return data;
     } on RepositoryException {
@@ -538,6 +575,17 @@ class ApiNoteRepository extends NoteRepository {
       throw const RepositoryException(
         'The server returned an unexpected response.',
       );
+    }
+  }
+
+  Map<String, dynamic> _readAuthenticated(http.Response response) {
+    try {
+      return _readResponse(response);
+    } on RepositoryException catch (error) {
+      if (error.statusCode == 401 && error.code != 'InvalidCredentials') {
+        onUnauthorized?.call();
+      }
+      rethrow;
     }
   }
 

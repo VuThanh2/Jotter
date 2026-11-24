@@ -15,6 +15,14 @@ class JotterAccount {
     avatarUrl: json['avatarUrl'] as String?,
   );
 
+  Map<String, dynamic> toJson() => {
+    'userId': id,
+    'email': email,
+    'displayName': displayName,
+    'isActivated': isActivated,
+    'avatarUrl': avatarUrl,
+  };
+
   final String id;
   final String email;
   final String displayName;
