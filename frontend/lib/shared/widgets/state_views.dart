@@ -87,7 +87,7 @@ class ErrorView extends StatelessWidget {
   );
 }
 
-/// A single-line message strip used for inline notices and errors.
+/// An inline notice or error shown inside a page.
 class MessageStrip extends StatelessWidget {
   const MessageStrip(this.text, {super.key, this.error = false, this.action});
 

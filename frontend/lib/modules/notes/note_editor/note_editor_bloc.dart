@@ -51,7 +51,10 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
   bool _saveAgain = false;
   int? _remoteVersionDuringSave;
 
-  Future<void> _start(EditorStarted event, Emitter<NoteEditorState> emit) async {
+  Future<void> _start(
+    EditorStarted event,
+    Emitter<NoteEditorState> emit,
+  ) async {
     final cached = _store.cached(noteId);
     if (isNew && cached == null) {
       final now = DateTime.now();
@@ -148,7 +151,8 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
             ? draftState.copyWith(saveStatus: SaveStatus.idle)
             : draftState.copyWith(
                 saveStatus: SaveStatus.failed,
-                saveError: 'Add a title or some text. Empty notes are not saved.',
+                saveError:
+                    'Add a title or some text. Empty notes are not saved.',
               ),
       );
       return;
@@ -241,10 +245,10 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
     try {
       final note = await _store.unlock(noteId, event.password);
       emit(
-        _withNote(state, note).copyWith(
-          status: EditorStatus.ready,
-          unlocking: false,
-        ),
+        _withNote(
+          state,
+          note,
+        ).copyWith(status: EditorStatus.ready, unlocking: false),
       );
     } on RepositoryException catch (error) {
       emit(
@@ -287,15 +291,7 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
     final pinned = !base.isPinned;
     try {
       await _store.setPinned(base, pinned);
-      emit(
-        state.copyWith(
-          note: base.copyWith(
-            isPinned: pinned,
-            pinnedAt: pinned ? DateTime.now() : null,
-            clearPinnedAt: !pinned,
-          ),
-        ),
-      );
+      emit(state.copyWith(note: base.withPin(pinned)));
     } on RepositoryException catch (error) {
       emit(state.copyWith(saveError: error.message));
     }
@@ -356,7 +352,8 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
       case 'noteChanged':
         final version = (data['version'] as num?)?.toInt() ?? 0;
         if (version <= (state.note?.version ?? 0)) return;
-        if (data['isProtected'] == true && !(state.note?.isProtected ?? false)) {
+        if (data['isProtected'] == true &&
+            !(state.note?.isProtected ?? false)) {
           emit(state.copyWith(status: EditorStatus.locked));
         } else if (_saving) {
           // Possibly our own save echoing back; decide once it returns.

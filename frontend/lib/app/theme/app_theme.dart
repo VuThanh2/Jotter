@@ -118,7 +118,7 @@ final jotterDarkTheme = jotterTheme.copyWith(
     displayColor: const Color(0xFFE5E7DF),
   ),
   dividerColor: const Color(0xFF3D453E),
-  // copyWith keeps the light canvas, which made dropdown menus unreadable.
+  // copyWith would keep the light canvas behind dropdown menus.
   canvasColor: const Color(0xFF222923),
   cardColor: const Color(0xFF242B25),
   popupMenuTheme: const PopupMenuThemeData(color: Color(0xFF2B332C)),
@@ -156,6 +156,5 @@ class JotterPalette {
   Color get line => dark ? const Color(0xFF3D453E) : JotterColors.line;
   Color get selected =>
       dark ? const Color(0xFF323B33) : const Color(0xFFE7E5DC);
-  Color get panel => dark ? const Color(0xFF2B332C) : const Color(0xFFE8E9E0);
   Color tint(Color color) => dark ? Color.lerp(color, paper, .85)! : color;
 }

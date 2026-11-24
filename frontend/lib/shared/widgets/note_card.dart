@@ -58,8 +58,7 @@ class _NoteCardState extends State<NoteCard> {
   @override
   Widget build(BuildContext context) {
     final palette = context.jotterColors;
-    // The title text inside already names the card; repeating it as a label
-    // made screen readers announce it twice.
+    // No label here: the title text inside already names the card.
     return Semantics(
       container: true,
       child: MouseRegion(

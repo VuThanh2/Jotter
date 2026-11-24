@@ -79,19 +79,6 @@ class SecureSessionStore implements SessionStore {
   }
 }
 
-class MemorySessionStore implements SessionStore {
-  StoredSession? value;
-
-  @override
-  Future<StoredSession?> read() async => value;
-
-  @override
-  Future<void> write(StoredSession session) async => value = session;
-
-  @override
-  Future<void> clear() async => value = null;
-}
-
 sealed class SessionState extends Equatable {
   const SessionState();
 
@@ -126,8 +113,9 @@ final class SessionActive extends SessionState {
   List<Object?> get props => [workspace];
 }
 
-typedef WorkspaceOpener =
-    Future<OfflineNoteRepository> Function(ApiNoteRepository remote);
+typedef WorkspaceOpener = Future<OfflineNoteRepository> Function(
+  ApiNoteRepository remote,
+);
 
 class SessionCubit extends Cubit<SessionState> {
   SessionCubit(this._store, {WorkspaceOpener? openWorkspace})

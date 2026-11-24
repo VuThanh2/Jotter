@@ -94,6 +94,7 @@ class OfflineNoteRepository extends NoteRepository {
   void _notifyChanged() {
     if (!_disposed) _changes.add(null);
   }
+
   bool get isOffline => _isOffline;
   List<JotterNote> get cachedNotes => List.unmodifiable(_notes.values);
   List<JotterLabel> get cachedLabels => List.unmodifiable(_labels.values);
@@ -389,11 +390,7 @@ class OfflineNoteRepository extends NoteRepository {
   Future<JotterNote> pinNote(JotterNote note, bool pinned) async {
     if (!note.isOwned)
       throw const RepositoryException('Only the owner can pin this note.');
-    final updated = note.copyWith(
-      isPinned: pinned,
-      pinnedAt: pinned ? DateTime.now() : null,
-      clearPinnedAt: !pinned,
-    );
+    final updated = note.withPin(pinned);
     await _queueMetadata('pin', {
       'noteId': note.id,
       'title': note.title,
@@ -710,7 +707,9 @@ class OfflineNoteRepository extends NoteRepository {
   Future<void> _pull() async {
     var first = true;
     var restarts = 0;
-    final previousProtection = {for (final note in _notes.values) note.id: note.isProtected};
+    final previousProtection = {
+      for (final note in _notes.values) note.id: note.isProtected,
+    };
     while (!_disposed) {
       final page = await remote.pullChanges(since: _cursor);
       if (_disposed) return;
@@ -738,7 +737,9 @@ class OfflineNoteRepository extends NoteRepository {
         }
         final protected = item['isProtected'] == true;
         final owned = item['ownerId'] == remote.account.id;
-        final newlyProtected = protected && (_notes[id]?.isProtected ?? previousProtection[id]) == false;
+        final newlyProtected =
+            protected &&
+            (_notes[id]?.isProtected ?? previousProtection[id]) == false;
         previousProtection[id] = protected;
         if (protected) {
           // A newly enabled password must scrub a previously cached body now,
@@ -768,7 +769,11 @@ class OfflineNoteRepository extends NoteRepository {
           }
         }
         if (newlyProtected && !_disposed) {
-          _events.add({'type': 'accessRevoked', 'noteId': id, 'isProtected': true});
+          _events.add({
+            'type': 'accessRevoked',
+            'noteId': id,
+            'isProtected': true,
+          });
         }
         if (_hasPendingNote(id) && !protected) continue;
         final content = protected ? '' : item['content'] as String? ?? '';
@@ -872,7 +877,13 @@ class OfflineNoteRepository extends NoteRepository {
     ].where((item) => item.id == operationId).firstOrNull;
     if (operation == null || operation.kind != 'save')
       throw const RepositoryException('This change has no note draft to copy.');
-    final latest = _outbox.where((item) => item.kind == 'save' && item.noteId == operation.noteId).lastOrNull ?? operation;
+    final latest =
+        _outbox
+            .where(
+              (item) => item.kind == 'save' && item.noteId == operation.noteId,
+            )
+            .lastOrNull ??
+        operation;
     final original = JotterNote.fromJson(
       Map<String, dynamic>.from(latest.payload['note'] as Map),
     );

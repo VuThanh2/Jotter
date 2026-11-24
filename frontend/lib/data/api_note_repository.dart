@@ -250,11 +250,7 @@ class ApiNoteRepository extends NoteRepository {
       body: {'isPinned': pinned},
       idempotent: true,
     );
-    final saved = note.copyWith(
-      isPinned: pinned,
-      pinnedAt: pinned ? DateTime.now() : null,
-      clearPinnedAt: !pinned,
-    );
+    final saved = note.withPin(pinned);
     _knownNotes[note.id] = saved;
     return saved;
   }

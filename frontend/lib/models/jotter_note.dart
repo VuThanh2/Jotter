@@ -35,6 +35,13 @@ class JotterNote {
   final String? conflictOfNoteId;
   final List<String> labelIds;
 
+  /// Pinning stamps the local time; the server's pinnedAt replaces it on sync.
+  JotterNote withPin(bool pinned) => copyWith(
+    isPinned: pinned,
+    pinnedAt: pinned ? DateTime.now() : null,
+    clearPinnedAt: !pinned,
+  );
+
   JotterNote copyWith({
     String? id,
     String? title,
