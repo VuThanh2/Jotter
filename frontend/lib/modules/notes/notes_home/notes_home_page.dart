@@ -61,7 +61,8 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
 
   void _notify(String? message) {
     if (message == null || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _onAction(JotterNote note, NoteCardAction action) async {
@@ -126,6 +127,12 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
                       ),
                     ),
                   ),
+                  if (state.refreshing && state.status != NotesStatus.loading)
+                    const SliverToBoxAdapter(
+                      child: LinearProgressIndicator(
+                        semanticsLabel: 'Refreshing notes',
+                      ),
+                    ),
                   ..._body(context, state, preferences, horizontal),
                   const SliverToBoxAdapter(child: SizedBox(height: 96)),
                 ],
@@ -155,6 +162,16 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
           ErrorView(
             message: state.error ?? 'Your notes could not be loaded.',
             onRetry: context.read<NotesHomeCubit>().refresh,
+          ),
+        ),
+      ];
+    }
+    if (state.isSearching && state.error != null) {
+      return [
+        fill(
+          ErrorView(
+            message: state.error!,
+            onRetry: context.read<NotesHomeCubit>().retrySearch,
           ),
         ),
       ];
@@ -274,10 +291,7 @@ class _Header extends StatelessWidget {
           children: [
             Text('Notes', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(width: 10),
-            Text(
-              '$count',
-              style: TextStyle(color: context.jotterColors.muted),
-            ),
+            Text('$count', style: TextStyle(color: context.jotterColors.muted)),
             const Spacer(),
             SegmentedButton<bool>(
               key: const Key('view-toggle'),
@@ -327,7 +341,9 @@ class _Header extends StatelessWidget {
           onToggle: cubit.toggleLabel,
           onClear: cubit.clearLabels,
         ),
-        if (state.error != null && state.status == NotesStatus.ready) ...[
+        if (state.error != null &&
+            state.status == NotesStatus.ready &&
+            !state.isSearching) ...[
           const SizedBox(height: 12),
           MessageStrip(state.error!, error: true),
         ],
