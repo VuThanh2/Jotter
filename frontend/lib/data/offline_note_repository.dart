@@ -63,6 +63,7 @@ class OfflineNoteRepository extends NoteRepository {
   );
   final StreamController<Map<String, dynamic>> _events =
       StreamController.broadcast();
+  final StreamController<void> _changes = StreamController.broadcast();
   Future<void>? _synchronizing;
   Future<void> _writeTail = Future.value();
   Timer? _poll;
@@ -85,6 +86,15 @@ class OfflineNoteRepository extends NoteRepository {
   bool get isPreview => false;
   ValueListenable<WorkspaceSyncStatus> get syncStatus => _status;
   Stream<Map<String, dynamic>> get realtimeEvents => _events.stream;
+
+  /// Fires whenever cached notes or labels change, locally or from the server.
+  Stream<void> get changes => _changes.stream;
+  JotterNote? cachedNote(String id) => _notes[id];
+
+  void _notifyChanged() {
+    if (!_disposed) _changes.add(null);
+  }
+
   bool get isOffline => _isOffline;
   List<JotterNote> get cachedNotes => List.unmodifiable(_notes.values);
   List<JotterLabel> get cachedLabels => List.unmodifiable(_labels.values);
@@ -223,9 +233,11 @@ class OfflineNoteRepository extends NoteRepository {
 
   @override
   Future<List<JotterNote>> listNotes({String? query}) async {
-    await synchronize();
     final search = query?.trim() ?? '';
-    if (search.isEmpty) return _notes.values.toList();
+    if (search.isEmpty) {
+      await synchronize();
+      return _notes.values.toList();
+    }
     if (!_isOffline) {
       try {
         final serverResults = await remote.listNotes(query: search);
@@ -280,6 +292,7 @@ class OfflineNoteRepository extends NoteRepository {
       _isOffline = false;
       await _persistIfAvailable();
       _publish();
+      _notifyChanged();
       return note;
     } catch (error) {
       if (error is RepositoryException &&
@@ -292,12 +305,14 @@ class OfflineNoteRepository extends NoteRepository {
           contentLoaded: false,
         );
         await _persistIfAvailable();
+        _notifyChanged();
         rethrow;
       }
       if (error is RepositoryException &&
           [403, 404].contains(error.statusCode)) {
         _notes.remove(id);
         await _persistIfAvailable();
+        _notifyChanged();
         rethrow;
       }
       if (!_networkFailure(error)) rethrow;
@@ -334,6 +349,7 @@ class OfflineNoteRepository extends NoteRepository {
       final saved = await remote.saveNote(note, isNew: isNew);
       _notes[saved.id] = saved;
       await _persistIfAvailable();
+      _notifyChanged();
       return saved;
     }
     final operation = _QueuedOperation(
@@ -366,6 +382,7 @@ class OfflineNoteRepository extends NoteRepository {
       }
       rethrow;
     }
+    _notifyChanged();
     await synchronize();
     if (operation.error != null) {
       throw RepositoryException(
@@ -382,7 +399,7 @@ class OfflineNoteRepository extends NoteRepository {
     if (!note.isOwned) {
       throw const RepositoryException('Only the owner can pin this note.');
     }
-    final updated = note.copyWith(isPinned: pinned);
+    final updated = note.withPin(pinned);
     await _queueMetadata('pin', {
       'noteId': note.id,
       'title': note.title,
@@ -490,6 +507,7 @@ class OfflineNoteRepository extends NoteRepository {
     }
     update();
     await _persist();
+    _notifyChanged();
     await synchronize();
     if (operation.error != null) {
       throw RepositoryException(
@@ -505,6 +523,7 @@ class OfflineNoteRepository extends NoteRepository {
     final note = await remote.unlockNote(id, password);
     _notes[id] = note;
     await _persistIfAvailable();
+    _notifyChanged();
     return note;
   }
 
@@ -556,6 +575,7 @@ class OfflineNoteRepository extends NoteRepository {
         _error = null;
       }
       if (!_disposed) _events.add({'type': 'workspaceSynced'});
+      _notifyChanged();
     } catch (error) {
       if (_networkFailure(error)) {
         _isOffline = true;
@@ -792,6 +812,7 @@ class OfflineNoteRepository extends NoteRepository {
           isProtected: protected,
           isOwned: owned,
           isPinned: item['isPinned'] == true,
+          pinnedAt: DateTime.tryParse(item['pinnedAt'] as String? ?? ''),
           isShared: !owned || _notes[id]?.isShared == true,
           canEdit: ['Owner', 'Edit'].contains(item['permission']),
           contentLoaded: !protected && item['content'] != null,
@@ -1047,6 +1068,9 @@ class OfflineNoteRepository extends NoteRepository {
         _persistInBackground();
       }
       _events.add(message);
+      if (type == 'accessRevoked' || type == 'permissionChanged') {
+        _notifyChanged();
+      }
       if ([
         'noteChanged',
         'permissionChanged',
@@ -1094,6 +1118,7 @@ class OfflineNoteRepository extends NoteRepository {
     }
     await _writeTail.catchError((Object _) {});
     await _events.close();
+    await _changes.close();
     _status.dispose();
     if (disposeRemote) remote.dispose();
   }
