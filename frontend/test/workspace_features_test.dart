@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jotter/data/preview_note_repository.dart';
-import 'package:jotter/main.dart';
+
+import 'helpers/legacy_app.dart';
+
 import 'package:jotter/models/jotter_preferences.dart';
 import 'package:jotter/screens/workspace_screen.dart';
 import 'package:jotter/theme.dart';
