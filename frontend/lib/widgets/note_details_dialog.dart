@@ -46,7 +46,7 @@ class _NoteDetails extends StatefulWidget {
 class _NoteDetailsState extends State<_NoteDetails> {
   static const _tabs = ['Files', 'Sharing', 'Protection', 'Summary'];
   final _emails = TextEditingController();
-  String _permission = 'ReadOnly';
+  final Map<String, String> _invitationPermissions = {};
   late String _tab;
   late bool _protected;
   late bool _locked;
@@ -361,12 +361,20 @@ class _NoteDetailsState extends State<_NoteDetails> {
   }
 
   Future<void> _invite() async {
-    final emails = _emails.text
-        .split(RegExp(r'[,;\s]+'))
-        .where((value) => value.isNotEmpty)
-        .toList();
+    final emails = _invitationEmails;
     await _run(() async {
-      final result = await _api.inviteToNote(_id, emails, _permission);
+      final result = await _api.inviteRecipients(
+        _id,
+        emails
+            .map(
+              (email) => (
+                email: email,
+                permission:
+                    _invitationPermissions[email.toLowerCase()] ?? 'ReadOnly',
+              ),
+            )
+            .toList(),
+      );
       if (result.created > 0) _changed = true;
       final shares = await _api.listShares(_id);
       if (!mounted) return;
@@ -377,6 +385,14 @@ class _NoteDetailsState extends State<_NoteDetails> {
         _emails.text = result.rejected.map((item) => item.email).join(', ');
       });
     }, changes: false);
+  }
+
+  List<String> get _invitationEmails {
+    final emails = <String, String>{};
+    for (final email in _emails.text.split(RegExp(r'[,;\s]+'))) {
+      if (email.isNotEmpty) emails[email.toLowerCase()] = email;
+    }
+    return emails.values.toList();
   }
 
   String _rejection(String code) => switch (code) {
@@ -838,6 +854,7 @@ class _NoteDetailsState extends State<_NoteDetails> {
         const SizedBox(height: 18),
         TextField(
           controller: _emails,
+          onChanged: (_) => setState(() {}),
           enabled: !_busy,
           minLines: 1,
           maxLines: 3,
@@ -848,31 +865,33 @@ class _NoteDetailsState extends State<_NoteDetails> {
           ),
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            SizedBox(
-              width: 170,
-              child: DropdownButtonFormField<String>(
-                initialValue: _permission,
-                decoration: const InputDecoration(labelText: 'Permission'),
-                items: const [
-                  DropdownMenuItem(value: 'ReadOnly', child: Text('Can view')),
-                  DropdownMenuItem(value: 'Edit', child: Text('Can edit')),
-                ],
-                onChanged: _busy
-                    ? null
-                    : (value) => setState(() => _permission = value!),
-              ),
+        for (final email in _invitationEmails)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: DropdownButtonFormField<String>(
+              key: ValueKey('invite-permission:${email.toLowerCase()}'),
+              initialValue:
+                  _invitationPermissions[email.toLowerCase()] ?? 'ReadOnly',
+              decoration: InputDecoration(labelText: 'Permission for $email'),
+              items: const [
+                DropdownMenuItem(value: 'ReadOnly', child: Text('Can view')),
+                DropdownMenuItem(value: 'Edit', child: Text('Can edit')),
+              ],
+              onChanged: _busy
+                  ? null
+                  : (value) => setState(
+                      () =>
+                          _invitationPermissions[email.toLowerCase()] = value!,
+                    ),
             ),
-            FilledButton.icon(
-              onPressed: _busy ? null : _invite,
-              icon: const Icon(Icons.person_add_alt_1, size: 18),
-              label: const Text('Send invitation'),
-            ),
-          ],
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: _busy ? null : _invite,
+            icon: const Icon(Icons.person_add_alt_1, size: 18),
+            label: const Text('Send invitation'),
+          ),
         ),
         const SizedBox(height: 26),
         Text(

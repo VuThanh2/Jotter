@@ -82,13 +82,26 @@ extension NoteFeaturesApi on ApiNoteRepository {
     String noteId,
     List<String> emails,
     String permission,
+  ) => inviteRecipients(
+    noteId,
+    emails.map((email) => (email: email, permission: permission)).toList(),
+  );
+
+  Future<ShareInvitationResult> inviteRecipients(
+    String noteId,
+    List<({String email, String permission})> invitations,
   ) async {
-    _validatePermission(permission);
-    final recipients = emails
-        .map((email) => email.trim())
-        .where((email) => email.isNotEmpty)
-        .toSet()
-        .toList();
+    final recipients = <String, ({String email, String permission})>{};
+    for (final invitation in invitations) {
+      _validatePermission(invitation.permission);
+      final email = invitation.email.trim();
+      if (email.isNotEmpty) {
+        recipients[email.toLowerCase()] = (
+          email: email,
+          permission: invitation.permission,
+        );
+      }
+    }
     if (recipients.isEmpty || recipients.length > 20) {
       throw const RepositoryException(
         'Invite between 1 and 20 registered email addresses at a time.',
@@ -98,8 +111,8 @@ extension NoteFeaturesApi on ApiNoteRepository {
       'POST',
       '/api/notes/$noteId/shares',
       body: {
-        'recipients': recipients
-            .map((email) => {'email': email, 'permission': permission})
+        'recipients': recipients.values
+            .map((item) => {'email': item.email, 'permission': item.permission})
             .toList(),
       },
       idempotent: true,
