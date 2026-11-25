@@ -8,6 +8,7 @@ class JotterNote {
     this.preview = '',
     this.version = 0,
     this.isPinned = false,
+    this.pinnedAt,
     this.isProtected = false,
     this.isShared = false,
     this.canEdit = true,
@@ -25,6 +26,7 @@ class JotterNote {
   final DateTime updatedAt;
   final DateTime createdAt;
   final bool isPinned;
+  final DateTime? pinnedAt;
   final bool isProtected;
   final bool isShared;
   final bool canEdit;
@@ -32,6 +34,13 @@ class JotterNote {
   final bool contentLoaded;
   final String? conflictOfNoteId;
   final List<String> labelIds;
+
+  /// Pinning stamps the local time; the server's pinnedAt replaces it on sync.
+  JotterNote withPin(bool pinned) => copyWith(
+    isPinned: pinned,
+    pinnedAt: pinned ? DateTime.now() : null,
+    clearPinnedAt: !pinned,
+  );
 
   JotterNote copyWith({
     String? id,
@@ -42,6 +51,8 @@ class JotterNote {
     DateTime? updatedAt,
     DateTime? createdAt,
     bool? isPinned,
+    DateTime? pinnedAt,
+    bool clearPinnedAt = false,
     bool? isProtected,
     bool? isShared,
     bool? canEdit,
@@ -58,6 +69,7 @@ class JotterNote {
     updatedAt: updatedAt ?? this.updatedAt,
     createdAt: createdAt ?? this.createdAt,
     isPinned: isPinned ?? this.isPinned,
+    pinnedAt: clearPinnedAt ? null : pinnedAt ?? this.pinnedAt,
     isProtected: isProtected ?? this.isProtected,
     isShared: isShared ?? this.isShared,
     canEdit: canEdit ?? this.canEdit,
@@ -76,6 +88,7 @@ class JotterNote {
     'updatedAt': updatedAt.toIso8601String(),
     'createdAt': createdAt.toIso8601String(),
     'isPinned': isPinned,
+    'pinnedAt': pinnedAt?.toIso8601String(),
     'isProtected': isProtected,
     'isShared': isShared,
     'canEdit': canEdit,
@@ -94,6 +107,7 @@ class JotterNote {
     updatedAt: DateTime.parse(json['updatedAt'] as String),
     createdAt: DateTime.parse(json['createdAt'] as String),
     isPinned: json['isPinned'] as bool? ?? false,
+    pinnedAt: DateTime.tryParse(json['pinnedAt'] as String? ?? ''),
     isProtected: json['isProtected'] as bool? ?? false,
     isShared: json['isShared'] as bool? ?? false,
     canEdit: json['canEdit'] as bool? ?? false,

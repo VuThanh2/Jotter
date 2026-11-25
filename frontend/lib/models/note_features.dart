@@ -24,6 +24,7 @@ class NoteAttachment {
     'image/gif',
     'image/webp',
   ].contains(mimeType);
+  bool get isVideo => mimeType.startsWith('video/');
   String get sizeLabel => sizeBytes < 1024
       ? '$sizeBytes B'
       : sizeBytes < 1024 * 1024
