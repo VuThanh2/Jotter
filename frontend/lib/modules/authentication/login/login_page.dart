@@ -134,8 +134,9 @@ class _LoginViewState extends State<_LoginView> {
                     : const Text('Sign in'),
               ),
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   const Text('New to Jotter?'),
                   TextButton(
