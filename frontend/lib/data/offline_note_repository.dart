@@ -398,12 +398,8 @@ class OfflineNoteRepository extends NoteRepository {
   Future<JotterNote> pinNote(JotterNote note, bool pinned) async {
     if (!note.isOwned) {
       throw const RepositoryException('Only the owner can pin this note.');
-<<<<<<< HEAD
     }
-    final updated = note.copyWith(isPinned: pinned);
-=======
     final updated = note.withPin(pinned);
->>>>>>> 7647870698402cfa3e6995bc959ca4b2fc41c10c
     await _queueMetadata('pin', {
       'noteId': note.id,
       'title': note.title,
@@ -903,10 +899,7 @@ class OfflineNoteRepository extends NoteRepository {
     ].where((item) => item.id == operationId).firstOrNull;
     if (operation == null || operation.kind != 'save') {
       throw const RepositoryException('This change has no note draft to copy.');
-<<<<<<< HEAD
     }
-=======
->>>>>>> 7647870698402cfa3e6995bc959ca4b2fc41c10c
     final latest =
         _outbox
             .where(
@@ -1075,18 +1068,14 @@ class OfflineNoteRepository extends NoteRepository {
         _persistInBackground();
       }
       _events.add(message);
-<<<<<<< HEAD
+      if (type == 'accessRevoked' || type == 'permissionChanged') {
+        _notifyChanged();
+      }
       if ([
         'noteChanged',
         'permissionChanged',
         'accessRevoked',
       ].contains(type)) {
-=======
-      if (type == 'accessRevoked' || type == 'permissionChanged') {
-        _notifyChanged();
-      }
-      if (['noteChanged', 'permissionChanged', 'accessRevoked'].contains(type))
->>>>>>> 7647870698402cfa3e6995bc959ca4b2fc41c10c
         unawaited(synchronize());
       }
     } catch (_) {

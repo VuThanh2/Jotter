@@ -371,11 +371,7 @@ class ApiNoteRepository extends NoteRepository {
           .get(_uri(path), headers: {'Authorization': 'Bearer $_token'})
           .timeout(const Duration(seconds: 30));
       if (response.statusCode < 200 || response.statusCode >= 300) {
-<<<<<<< HEAD
-        _readResponse(response);
-=======
         _readAuthenticated(response);
->>>>>>> 7647870698402cfa3e6995bc959ca4b2fc41c10c
       }
       return response.bodyBytes;
     } on TimeoutException {
@@ -467,11 +463,7 @@ class ApiNoteRepository extends NoteRepository {
               .send(request)
               .timeout(const Duration(seconds: 90));
           if (response.statusCode < 200 || response.statusCode >= 300) {
-<<<<<<< HEAD
-            _readResponse(await http.Response.fromStream(response));
-=======
             _readAuthenticated(await http.Response.fromStream(response));
->>>>>>> 7647870698402cfa3e6995bc959ca4b2fc41c10c
           }
           if (cancelled) return;
           subscription = response.stream
