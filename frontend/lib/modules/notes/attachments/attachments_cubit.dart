@@ -84,9 +84,8 @@ class AttachmentsCubit extends Cubit<AttachmentsState> {
     }
   }
 
-  void dismissUpload(UploadItem item) => emit(
-    state.copyWith(uploads: [...state.uploads]..remove(item)),
-  );
+  void dismissUpload(UploadItem item) =>
+      emit(state.copyWith(uploads: [...state.uploads]..remove(item)));
 
   Future<void> remove(String attachmentId) async {
     try {

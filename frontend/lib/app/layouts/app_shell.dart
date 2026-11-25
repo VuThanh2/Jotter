@@ -35,7 +35,11 @@ class AppShell extends StatelessWidget {
       return Scaffold(
         appBar: AppBar(
           title: const JotterMark(size: 20),
-          actions: const [SyncStatusIndicator(), AccountEntry(), SizedBox(width: 4)],
+          actions: const [
+            SyncStatusIndicator(),
+            AccountEntry(),
+            SizedBox(width: 4),
+          ],
         ),
         body: content,
         bottomNavigationBar: NavigationBar(
@@ -74,7 +78,10 @@ class AppShell extends StatelessWidget {
                     padding: EdgeInsets.only(bottom: 16),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      children: [SyncStatusIndicator(), AccountEntry(radius: 18)],
+                      children: [
+                        SyncStatusIndicator(),
+                        AccountEntry(radius: 18),
+                      ],
                     ),
                   ),
                 ),

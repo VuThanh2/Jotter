@@ -28,7 +28,11 @@ class SaveStatusIndicator extends StatelessWidget {
         'Saved on this device',
         muted,
       ),
-      SaveStatus.failed => (Icons.error_outline_rounded, 'Not saved', failedColor),
+      SaveStatus.failed => (
+        Icons.error_outline_rounded,
+        'Not saved',
+        failedColor,
+      ),
     };
     if (icon == null) return const SizedBox.shrink();
     final indicator = Semantics(

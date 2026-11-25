@@ -20,14 +20,13 @@ abstract final class AppRoutes {
   static String note(String id) => '$notes/$id';
 
   /// A client-generated id; the note is created on its first autosave.
-  static String newNote(String id, {List<String> labelIds = const []}) =>
-      Uri(
-        path: note(id),
-        queryParameters: {
-          'new': '1',
-          if (labelIds.isNotEmpty) 'labels': labelIds.join(','),
-        },
-      ).toString();
+  static String newNote(String id, {List<String> labelIds = const []}) => Uri(
+    path: note(id),
+    queryParameters: {
+      'new': '1',
+      if (labelIds.isNotEmpty) 'labels': labelIds.join(','),
+    },
+  ).toString();
 
   static String attachment(String noteId, String attachmentId) =>
       '${note(noteId)}/attachments/$attachmentId';

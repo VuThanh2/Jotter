@@ -30,76 +30,73 @@ class AttachmentSection extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      BlocBuilder<AttachmentsCubit, AttachmentsState>(
-        builder: (context, state) {
-          final cubit = context.read<AttachmentsCubit>();
-          if (state.files.isEmpty && state.uploads.isEmpty && !canEdit) {
-            return const SizedBox.shrink();
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(
+    BuildContext context,
+  ) => BlocBuilder<AttachmentsCubit, AttachmentsState>(
+    builder: (context, state) {
+      final cubit = context.read<AttachmentsCubit>();
+      if (state.files.isEmpty && state.uploads.isEmpty && !canEdit) {
+        return const SizedBox.shrink();
+      }
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Text(
-                    'Attachments',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const Spacer(),
-                  if (canEdit)
-                    TextButton.icon(
-                      key: const Key('add-attachment'),
-                      onPressed: state.uploading
-                          ? null
-                          : () => addFiles(context),
-                      icon: const Icon(Icons.attach_file_rounded, size: 18),
-                      label: const Text('Add files'),
-                    ),
-                ],
+              Text(
+                'Attachments',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              if (state.error != null) ...[
-                MessageStrip(state.error!, error: true),
-                const SizedBox(height: 8),
-              ],
-              for (final upload in state.uploads)
-                _UploadRow(
-                  item: upload,
-                  onDismiss: () => cubit.dismissUpload(upload),
-                ),
-              if (state.loading && state.files.isEmpty)
-                const LinearProgressIndicator(minHeight: 2)
-              else if (state.files.isEmpty && state.uploads.isEmpty)
-                Text(
-                  'Images, videos, PDFs and other documents up to 25 MB each.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: context.jotterColors.muted,
-                  ),
-                ),
-              for (final file in state.files)
-                _FileRow(
-                  file: file,
-                  onOpen: () => context.push(
-                    AppRoutes.attachment(cubit.noteId, file.id),
-                    extra: file,
-                  ),
-                  onRemove: canEdit
-                      ? () async {
-                          final confirmed = await showConfirmDialog(
-                            context,
-                            title: 'Remove attachment?',
-                            message: '“${file.name}” will be removed from this note.',
-                            confirmLabel: 'Remove',
-                          );
-                          if (confirmed) await cubit.remove(file.id);
-                        }
-                      : null,
+              const Spacer(),
+              if (canEdit)
+                TextButton.icon(
+                  key: const Key('add-attachment'),
+                  onPressed: state.uploading ? null : () => addFiles(context),
+                  icon: const Icon(Icons.attach_file_rounded, size: 18),
+                  label: const Text('Add files'),
                 ),
             ],
-          );
-        },
+          ),
+          if (state.error != null) ...[
+            MessageStrip(state.error!, error: true),
+            const SizedBox(height: 8),
+          ],
+          for (final upload in state.uploads)
+            _UploadRow(
+              item: upload,
+              onDismiss: () => cubit.dismissUpload(upload),
+            ),
+          if (state.loading && state.files.isEmpty)
+            const LinearProgressIndicator(minHeight: 2)
+          else if (state.files.isEmpty && state.uploads.isEmpty)
+            Text(
+              'Images, videos, PDFs and other documents up to 25 MB each.',
+              style: TextStyle(fontSize: 12, color: context.jotterColors.muted),
+            ),
+          for (final file in state.files)
+            _FileRow(
+              file: file,
+              onOpen: () => context.push(
+                AppRoutes.attachment(cubit.noteId, file.id),
+                extra: file,
+              ),
+              onRemove: canEdit
+                  ? () async {
+                      final confirmed = await showConfirmDialog(
+                        context,
+                        title: 'Remove attachment?',
+                        message:
+                            '“${file.name}” will be removed from this note.',
+                        confirmLabel: 'Remove',
+                      );
+                      if (confirmed) await cubit.remove(file.id);
+                    }
+                  : null,
+            ),
+        ],
       );
+    },
+  );
 }
 
 class _FileRow extends StatelessWidget {

@@ -37,7 +37,9 @@ class _LabelNameDialogState extends State<_LabelNameDialog> {
   }
 
   void _submit() {
-    if (_form.currentState!.validate()) Navigator.pop(context, _name.text.trim());
+    if (_form.currentState!.validate()) {
+      Navigator.pop(context, _name.text.trim());
+    }
   }
 
   @override

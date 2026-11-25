@@ -20,10 +20,7 @@ Future<VideoSource> openVideo({
   required Future<Uint8List> Function() download,
 }) async {
   final bytes = await download();
-  final blob = web.Blob(
-    [bytes.toJS].toJS,
-    web.BlobPropertyBag(type: mimeType),
-  );
+  final blob = web.Blob([bytes.toJS].toJS, web.BlobPropertyBag(type: mimeType));
   final blobUrl = web.URL.createObjectURL(blob);
   return VideoSource(
     VideoPlayerController.networkUrl(Uri.parse(blobUrl)),
