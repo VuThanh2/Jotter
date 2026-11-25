@@ -1,5 +1,10 @@
 # Jotter front end
 
+> This document describes the earlier preview-based interface and is retained
+> for historical reference. The current app uses the routes and session flow
+> described in the [root README](../README.txt); use that file for current
+> setup, build, testing, and sync instructions.
+
 A responsive Flutter notes workspace for the existing Jotter API. It opens in a clearly marked, session-only preview with six sample notes, so the interface can be explored without a running back end.
 
 ## Run
