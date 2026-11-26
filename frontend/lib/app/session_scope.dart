@@ -33,9 +33,7 @@ class SessionScope extends StatelessWidget {
             onAccountChanged: context.read<SessionCubit>().accountChanged,
           )..refresh(),
         ),
-        BlocProvider(
-          create: (_) => SyncStatusCubit(workspace.syncStatus),
-        ),
+        BlocProvider(create: (_) => SyncStatusCubit(workspace.syncStatus)),
       ],
       child: child,
     ),

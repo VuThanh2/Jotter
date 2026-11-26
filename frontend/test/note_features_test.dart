@@ -70,6 +70,73 @@ Future<void> _open(
 }
 
 void main() {
+  testWidgets(
+    'sharing dialog assigns each recipient their selected permission',
+    (tester) async {
+      Map<String, dynamic>? body;
+      final repository = _repository((request) async {
+        if (request.method == 'POST') {
+          body = jsonDecode(request.body) as Map<String, dynamic>;
+          return _json({
+            'created': [{}, {}],
+            'rejected': [],
+          }, 201);
+        }
+        return _json({'items': []});
+      });
+      await _open(
+        tester,
+        (context) => TextButton(
+          onPressed: () => showNoteDetailsDialog(
+            context,
+            repository: repository,
+            note: _note(),
+            initialTab: 'Sharing',
+          ),
+          child: const Text('Open'),
+        ),
+      );
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Email addresses'),
+        'one@example.com, two@example.com',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('invite-permission:two@example.com')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Can edit').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Send invitation'));
+      await tester.pumpAndSettle();
+      expect(body, {
+        'recipients': [
+          {'email': 'one@example.com', 'permission': 'ReadOnly'},
+          {'email': 'two@example.com', 'permission': 'Edit'},
+        ],
+      });
+    },
+  );
+  test('sharing sends an individual permission for each recipient', () async {
+    final repository = _repository((request) async {
+      expect(jsonDecode(request.body), {
+        'recipients': [
+          {'email': 'one@example.com', 'permission': 'ReadOnly'},
+          {'email': 'two@example.com', 'permission': 'Edit'},
+        ],
+      });
+      return _json({
+        'created': [{}, {}],
+        'rejected': [],
+      }, 201);
+    });
+    final result = await repository.inviteRecipients('note-1', [
+      (email: 'one@example.com', permission: 'ReadOnly'),
+      (email: 'two@example.com', permission: 'Edit'),
+    ]);
+    expect(result.created, 2);
+    expect(result.rejected, isEmpty);
+  });
   test(
     'SSE survives arbitrary chunks and replaces deltas with final summary',
     () async {

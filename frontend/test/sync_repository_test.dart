@@ -26,7 +26,7 @@ Future<ApiNoteRepository> _remote(
   email: '$owner@example.test',
   password: 'example',
   client: MockClient((request) async {
-    if (request.url.path == '/api/auth/login')
+    if (request.url.path == '/api/auth/login') {
       return _json({
         'accessToken': 'never-persist-this-token',
         'expiresAt': '2030-01-01T00:00:00Z',
@@ -37,6 +37,7 @@ Future<ApiNoteRepository> _remote(
           'isActivated': true,
         },
       });
+    }
     if (request.url.path == '/api/auth/logout') return http.Response('', 204);
     return handler(request);
   }),
@@ -256,7 +257,7 @@ void main() {
     final store = MemoryWorkspaceStore();
     Map<String, dynamic>? copyBody;
     final remote = await _remote((request) async {
-      if (request.method == 'PUT')
+      if (request.method == 'PUT') {
         return _json({
           'code': 'VersionConflict',
           'title': 'Server note changed',
@@ -266,6 +267,7 @@ void main() {
             'version': 8,
           },
         }, 409);
+      }
       if (request.method == 'POST') {
         copyBody = Map<String, dynamic>.from(jsonDecode(request.body) as Map);
         return _json({'version': 1, 'createdAt': _date, 'updatedAt': _date});
@@ -273,13 +275,14 @@ void main() {
       final notes = [
         _syncNote('conflicting', content: 'Server text', version: 8),
       ];
-      if (copyBody != null)
+      if (copyBody != null) {
         notes.add(
           _syncNote(
             copyBody!['noteId'] as String,
             content: copyBody!['content'] as String,
           ),
         );
+      }
       return _json(_page(notes: notes, next: 8));
     });
     final repository = await _open(remote, store);
@@ -357,8 +360,9 @@ void main() {
     final store = MemoryWorkspaceStore();
     var phase = 0;
     final remote = await _remote((request) async {
-      if (request.method == 'PUT')
+      if (request.method == 'PUT') {
         return _json({'code': 'NoteLocked', 'title': 'Locked'}, 423);
+      }
       return _json(
         _page(
           notes: [_syncNote('protected-now', protected: phase > 0)],
@@ -367,7 +371,7 @@ void main() {
       );
     });
     final repository = await _open(remote, store);
-    final events = <Map<String,dynamic>>[];
+    final events = <Map<String, dynamic>>[];
     final subscription = repository.realtimeEvents.listen(events.add);
     await repository.synchronize();
     await expectLater(
@@ -386,38 +390,67 @@ void main() {
       isNot(contains('UNSENT PRIVATE DRAFT')),
     );
     await Future<void>.delayed(Duration.zero);
-    expect(events.any((event) => event['type'] == 'accessRevoked' && event['noteId'] == 'protected-now' && event['isProtected'] == true), true);
+    expect(
+      events.any(
+        (event) =>
+            event['type'] == 'accessRevoked' &&
+            event['noteId'] == 'protected-now' &&
+            event['isProtected'] == true,
+      ),
+      true,
+    );
     await subscription.cancel();
     await repository.dispose();
   });
 
-  test('conflict recovery keeps the freshest dependent offline revision', () async {
-    final store = MemoryWorkspaceStore();
-    var online = false;
-    Map<String,dynamic>? copyBody;
-    final remote = await _remote((request) async {
-      if (!online) throw http.ClientException('offline');
-      if (request.method == 'PUT') return _json({'code': 'VersionConflict', 'title': 'Changed elsewhere'}, 409);
-      if (request.method == 'POST') {
-        copyBody = Map<String,dynamic>.from(jsonDecode(request.body) as Map);
-        return _json({'version': 1, 'createdAt': _date, 'updatedAt': _date});
-      }
-      final notes = [_syncNote('original', content: 'Latest server note', version: 8)];
-      if (copyBody != null) notes.add(_syncNote(copyBody!['noteId'] as String, content: copyBody!['content'] as String));
-      return _json(_page(notes: notes, next: 8));
-    });
-    final repository = await _open(remote, store);
-    await repository.saveNote(_draft('original', content: 'First offline revision', version: 2));
-    await repository.saveNote(_draft('original', content: 'Newest offline revision', version: 2));
-    online = true;
-    await repository.synchronize();
-    final firstConflict = repository.pendingChanges.first;
-    await repository.recoverConflictAsCopy(firstConflict.id);
-    expect(copyBody!['content'], 'Newest offline revision');
-    expect(copyBody!['conflictOfNoteId'], 'original');
-    expect(repository.pendingChanges, isEmpty);
-    await repository.dispose();
-  });
+  test(
+    'conflict recovery keeps the freshest dependent offline revision',
+    () async {
+      final store = MemoryWorkspaceStore();
+      var online = false;
+      Map<String, dynamic>? copyBody;
+      final remote = await _remote((request) async {
+        if (!online) throw http.ClientException('offline');
+        if (request.method == 'PUT') {
+          return _json({
+            'code': 'VersionConflict',
+            'title': 'Changed elsewhere',
+          }, 409);
+        }
+        if (request.method == 'POST') {
+          copyBody = Map<String, dynamic>.from(jsonDecode(request.body) as Map);
+          return _json({'version': 1, 'createdAt': _date, 'updatedAt': _date});
+        }
+        final notes = [
+          _syncNote('original', content: 'Latest server note', version: 8),
+        ];
+        if (copyBody != null) {
+          notes.add(
+            _syncNote(
+              copyBody!['noteId'] as String,
+              content: copyBody!['content'] as String,
+            ),
+          );
+        }
+        return _json(_page(notes: notes, next: 8));
+      });
+      final repository = await _open(remote, store);
+      await repository.saveNote(
+        _draft('original', content: 'First offline revision', version: 2),
+      );
+      await repository.saveNote(
+        _draft('original', content: 'Newest offline revision', version: 2),
+      );
+      online = true;
+      await repository.synchronize();
+      final firstConflict = repository.pendingChanges.first;
+      await repository.recoverConflictAsCopy(firstConflict.id);
+      expect(copyBody!['content'], 'Newest offline revision');
+      expect(copyBody!['conflictOfNoteId'], 'original');
+      expect(repository.pendingChanges, isEmpty);
+      await repository.dispose();
+    },
+  );
 
   test(
     'offline protected/shared content cannot be read from the local cache',
@@ -426,7 +459,7 @@ void main() {
       var online = true;
       final remote = await _remote((request) async {
         if (!online) throw http.ClientException('offline');
-        if (request.url.path == '/api/sync')
+        if (request.url.path == '/api/sync') {
           return _json(
             _page(
               notes: [
@@ -436,6 +469,7 @@ void main() {
               next: 2,
             ),
           );
+        }
         return _json({'code': 'NoteLocked', 'title': 'Locked'}, 423);
       });
       final repository = await _open(remote, store);

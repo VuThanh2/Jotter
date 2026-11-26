@@ -8,6 +8,7 @@ class SharedWithMeState extends Equatable {
     this.notes = const [],
     this.info = const {},
     this.query = '',
+    this.error,
     this.revision = 0,
   });
 
@@ -15,6 +16,7 @@ class SharedWithMeState extends Equatable {
   final List<JotterNote> notes;
   final Map<String, SharedNoteInfo> info;
   final String query;
+  final String? error;
   final int revision;
 
   List<JotterNote> get visible {
@@ -36,11 +38,14 @@ class SharedWithMeState extends Equatable {
     List<JotterNote>? notes,
     Map<String, SharedNoteInfo>? info,
     String? query,
+    String? error,
+    bool clearError = false,
   }) => SharedWithMeState(
     loading: loading ?? this.loading,
     notes: notes ?? this.notes,
     info: info ?? this.info,
     query: query ?? this.query,
+    error: clearError ? null : error ?? this.error,
     revision: revision + 1,
   );
 

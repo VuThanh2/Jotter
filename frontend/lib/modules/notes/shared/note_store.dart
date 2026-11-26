@@ -43,8 +43,7 @@ class NoteStore {
 
   Future<void> delete(String id) => _workspace.deleteNote(id);
 
-  Future<int> latestVersion(String id) =>
-      _workspace.remote.getNoteVersion(id);
+  Future<int> latestVersion(String id) => _workspace.remote.getNoteVersion(id);
 
   /// Joins the note's realtime channel so presence and edits arrive live.
   Future<void> watch(String? noteId) => _workspace.watchNote(noteId);

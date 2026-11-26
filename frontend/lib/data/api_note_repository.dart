@@ -358,8 +358,9 @@ class ApiNoteRepository extends NoteRepository {
   }
 
   Uri _uri(String path) {
-    if (!path.startsWith('/') || path.startsWith('//'))
+    if (!path.startsWith('/') || path.startsWith('//')) {
       throw const RepositoryException('Invalid API path.');
+    }
     return Uri.parse('$_baseUri$path');
   }
 
@@ -444,8 +445,9 @@ class ApiNoteRepository extends NoteRepository {
     controller = StreamController<String>(
       onListen: () async {
         try {
-          if (_closed)
+          if (_closed) {
             throw const RepositoryException('This session has ended.');
+          }
           final request = http.AbortableRequest(
             method,
             _uri(path),

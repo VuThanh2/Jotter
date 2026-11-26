@@ -15,5 +15,7 @@ Future<VideoSource> openVideo({
   required Map<String, String> headers,
   required String mimeType,
   required Future<Uint8List> Function() download,
-}) async =>
-    VideoSource(VideoPlayerController.networkUrl(url, httpHeaders: headers), () {});
+}) async => VideoSource(
+  VideoPlayerController.networkUrl(url, httpHeaders: headers),
+  () {},
+);

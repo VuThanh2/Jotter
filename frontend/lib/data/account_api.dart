@@ -95,12 +95,16 @@ class AccountAuthApi {
       final messages = <String>[];
       if (errors is Map) {
         for (final value in errors.values) {
-          if (value is List)
+          if (value is List) {
             for (final error in value) {
-              if (error is Map && error['message'] is String)
+              if (error is Map && error['message'] is String) {
                 messages.add(error['message'] as String);
-              if (error is String) messages.add(error);
+              }
+              if (error is String) {
+                messages.add(error);
+              }
             }
+          }
         }
       }
       throw RepositoryException(
@@ -153,8 +157,9 @@ extension AccountApi on ApiNoteRepository {
     await request('PUT', '/api/me/preferences', body: preferences.toJson()),
   );
   Future<Uint8List?> getAvatar() async {
-    if (account.avatarUrl == null) return null;
-    return download('/api/users/${account.id}/avatar');
+    final path = account.avatarUrl;
+    if (path == null) return null;
+    return download(path);
   }
 
   Future<void> uploadAvatar(Uint8List bytes, String filename) async {
@@ -208,8 +213,9 @@ String accountErrorMessage(Object error) {
   final requirements = error.details['requirements'];
   if (requirements is List) {
     for (final item in requirements) {
-      if (item is Map && item['description'] is String)
+      if (item is Map && item['description'] is String) {
         messages.add(item['description'] as String);
+      }
     }
   }
   final errors = error.details['errors'];
@@ -217,8 +223,9 @@ String accountErrorMessage(Object error) {
     for (final values in errors.values) {
       if (values is List) {
         for (final item in values) {
-          if (item is Map && item['message'] is String)
+          if (item is Map && item['message'] is String) {
             messages.add(item['message'] as String);
+          }
           if (item is String) messages.add(item);
         }
       }

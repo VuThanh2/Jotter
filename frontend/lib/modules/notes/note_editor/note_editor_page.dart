@@ -110,9 +110,8 @@ class _NoteEditorViewState extends State<_NoteEditorView> {
       context.read<AttachmentsCubit>().load();
     }
     if (state.deleted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Note deleted.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Note deleted.')));
       context.canPop() ? context.pop() : context.go(AppRoutes.notes);
     }
   }

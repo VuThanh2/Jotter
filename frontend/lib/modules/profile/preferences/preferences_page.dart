@@ -115,11 +115,13 @@ class PreferencesPage extends StatelessWidget {
                     color: context.jotterColors.muted,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Saved on this device. Syncing to your account…',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.jotterColors.muted,
+                  Expanded(
+                    child: Text(
+                      'Saved on this device. Syncing to your account…',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: context.jotterColors.muted,
+                      ),
                     ),
                   ),
                 ],

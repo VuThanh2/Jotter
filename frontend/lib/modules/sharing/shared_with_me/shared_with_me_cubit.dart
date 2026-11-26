@@ -15,15 +15,41 @@ class SharedWithMeCubit extends Cubit<SharedWithMeState> {
   final NoteStore _store;
   final SharedWithMeApi _api;
   late final StreamSubscription<List<JotterNote>> _subscription;
+  bool _refreshing = false;
 
   Future<void> refresh() async {
+    if (_refreshing || isClosed) return;
+    _refreshing = true;
+    emit(state.copyWith(loading: true, clearError: true));
     try {
       await _store.refresh();
       final info = await _api.fetch();
-      if (!isClosed) emit(state.copyWith(info: info, loading: false));
+      final sync = _store.syncStatus.value;
+      final refreshFailed =
+          sync.isOffline || (sync.error != null && sync.conflictCount == 0);
+      if (!isClosed) {
+        emit(
+          state.copyWith(
+            info: info,
+            loading: false,
+            error: refreshFailed
+                ? 'Shared notes could not be refreshed. Check your connection and try again.'
+                : null,
+            clearError: !refreshFailed,
+          ),
+        );
+      }
     } catch (_) {
-      // Offline: cached notes still show, just without sharer details.
-      if (!isClosed) emit(state.copyWith(loading: false));
+      if (!isClosed) {
+        emit(
+          state.copyWith(
+            loading: false,
+            error: 'Shared notes could not be refreshed. Check your connection and try again.',
+          ),
+        );
+      }
+    } finally {
+      _refreshing = false;
     }
   }
 
@@ -35,16 +61,9 @@ class SharedWithMeCubit extends Cubit<SharedWithMeState> {
     final known = state.info.keys.toSet();
     emit(state.copyWith(notes: shared));
     // A new share appeared through sync: fetch who shared it.
-    if (shared.any((note) => !known.contains(note.id))) {
-      unawaited(_refreshInfo());
+    if (!_refreshing && shared.any((note) => !known.contains(note.id))) {
+      unawaited(refresh());
     }
-  }
-
-  Future<void> _refreshInfo() async {
-    try {
-      final info = await _api.fetch();
-      if (!isClosed) emit(state.copyWith(info: info));
-    } catch (_) {}
   }
 
   @override

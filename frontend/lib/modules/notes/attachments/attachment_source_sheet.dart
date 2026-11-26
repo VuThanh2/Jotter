@@ -20,8 +20,16 @@ Future<PickSource?> showAttachmentSourceSheet(
             'Photos and videos',
           ),
         if (supportsCamera) ...const [
-          _Source(PickSource.camera, Icons.photo_camera_outlined, 'Take a photo'),
-          _Source(PickSource.cameraVideo, Icons.videocam_outlined, 'Record a video'),
+          _Source(
+            PickSource.camera,
+            Icons.photo_camera_outlined,
+            'Take a photo',
+          ),
+          _Source(
+            PickSource.cameraVideo,
+            Icons.videocam_outlined,
+            'Record a video',
+          ),
         ],
         const _Source(PickSource.files, Icons.attach_file_rounded, 'Files'),
       ],
