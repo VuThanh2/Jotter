@@ -139,17 +139,32 @@ class _NoteEditorViewState extends State<_NoteEditorView> {
       return;
     }
     _flush();
-    final changed = await showNoteDetailsDialog(
-      context,
-      repository: context.read<ApiNoteRepository>(),
-      note: note.copyWith(title: state.title, content: state.content),
-      initialTab: switch (action) {
-        EditorAction.share => 'Sharing',
-        EditorAction.protection => 'Protection',
-        _ => 'Summary',
-      },
-    );
-    if (changed == true) _bloc.add(const EditorReloadRequested());
+    // Live access changes reach the open dialog too, so a revoked or newly
+    // protected note stops showing files, shares and summaries immediately.
+    final updates = ValueNotifier<Map<String, dynamic>?>(null);
+    final subscription = context
+        .read<NoteStore>()
+        .noteEvents
+        .where((event) => event['noteId'] == note.id)
+        .listen((event) => updates.value = event);
+    final bool? changed;
+    try {
+      changed = await showNoteDetailsDialog(
+        context,
+        repository: context.read<ApiNoteRepository>(),
+        note: note.copyWith(title: state.title, content: state.content),
+        initialTab: switch (action) {
+          EditorAction.share => 'Sharing',
+          EditorAction.protection => 'Protection',
+          _ => 'Summary',
+        },
+        updates: updates,
+      );
+    } finally {
+      await subscription.cancel();
+      updates.dispose();
+    }
+    if (changed == true && mounted) _bloc.add(const EditorReloadRequested());
   }
 
   @override

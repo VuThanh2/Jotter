@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jotter/data/api_note_repository.dart';
@@ -44,6 +45,18 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      // Theme labels stay on one line instead of breaking mid-word.
+      final label = tester.renderObject<RenderParagraph>(find.text('System'));
+      expect(label.didExceedMaxLines, isFalse);
+      expect(
+        label
+            .getBoxesForSelection(
+              const TextSelection(baseOffset: 0, extentOffset: 6),
+            )
+            .map((box) => box.top)
+            .toSet(),
+        hasLength(1),
+      );
       await tester.tap(find.text('Dark'));
       await tester.pumpAndSettle();
       expect(preferences.state.preferences.themeMode, 'Dark');

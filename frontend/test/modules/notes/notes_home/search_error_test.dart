@@ -111,6 +111,48 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('refining a query keeps the previous results on screen', (
+    tester,
+  ) async {
+    final notes = _Notes();
+    final prefs = PreferencesCubit(PreferencesStore());
+    addTearDown(prefs.close);
+    await tester.pumpWidget(
+      MultiRepositoryProvider(
+        providers: [
+          RepositoryProvider<NoteStore>.value(value: notes),
+          RepositoryProvider<LabelStore>.value(value: _Labels()),
+        ],
+        child: BlocProvider.value(
+          value: prefs,
+          child: const MaterialApp(home: NotesHomePage()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'orc');
+    await tester.pump(const Duration(milliseconds: 300));
+    final date = DateTime(2026);
+    notes.requests['orc']!.complete([
+      JotterNote(
+        id: '1',
+        title: 'Orchid',
+        content: 'flower',
+        createdAt: date,
+        updatedAt: date,
+      ),
+    ]);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'orch');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Orchid'), findsOneWidget);
+    expect(find.textContaining('Nothing matches'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 300));
+    notes.requests['orch']!.complete([]);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Nothing matches'), findsOneWidget);
+  });
+
   test('older search cannot replace a newly entered query', () async {
     final notes = _Notes();
     final cubit = NotesHomeCubit(notes, _Labels());

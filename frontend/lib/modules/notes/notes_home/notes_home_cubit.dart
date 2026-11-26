@@ -68,15 +68,22 @@ class NotesHomeCubit extends Cubit<NotesHomeState> {
   }
 
   void search(String query) {
+    // Invalidates any in-flight search so a slow, older reply cannot win.
     _searchGeneration++;
-    emit(
-      state.copyWith(query: query, clearSearchResults: true, searching: false),
-    );
     if (query.trim().isEmpty) {
       _searchDebounce.cancel();
-      emit(state.copyWith(clearSearchResults: true, searching: false));
+      emit(
+        state.copyWith(
+          query: query,
+          clearSearchResults: true,
+          searching: false,
+        ),
+      );
       return;
     }
+    // Previous results stay visible during the debounce, so the list does not
+    // flash "Nothing matches" on every keystroke; a first search shows loading.
+    emit(state.copyWith(query: query, searching: true));
     _searchDebounce.run(_runSearch);
   }
 

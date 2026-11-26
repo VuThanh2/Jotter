@@ -10,7 +10,7 @@ import 'package:jotter/data/api_note_repository.dart';
 import 'package:jotter/data/note_features_api.dart';
 import 'package:jotter/data/note_repository.dart';
 import 'package:jotter/models/jotter_note.dart';
-import 'package:jotter/theme.dart';
+import 'package:jotter/app/theme/app_theme.dart';
 import 'package:jotter/widgets/ask_notes_dialog.dart';
 import 'package:jotter/widgets/note_details_dialog.dart';
 
@@ -117,6 +117,45 @@ void main() {
       });
     },
   );
+  testWidgets('per-recipient permissions fit a 320px phone', (tester) async {
+    final repository = _repository((request) async => _json({'items': []}));
+    await _open(
+      tester,
+      (context) => TextButton(
+        onPressed: () => showNoteDetailsDialog(
+          context,
+          repository: repository,
+          note: _note(),
+          initialTab: 'Sharing',
+        ),
+        child: const Text('Open'),
+      ),
+      size: const Size(320, 640),
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Email addresses'),
+      'a.very.long.recipient.name@example.com, b@example.com, half@exa',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(
+        const ValueKey(
+          'invite-permission:a.very.long.recipient.name@example.com',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('invite-permission:b@example.com')),
+      findsOneWidget,
+    );
+    // An unfinished address gets no permission row yet.
+    expect(
+      find.byKey(const ValueKey('invite-permission:half@exa')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
   test('sharing sends an individual permission for each recipient', () async {
     final repository = _repository((request) async {
       expect(jsonDecode(request.body), {

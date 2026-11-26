@@ -9,8 +9,9 @@ import 'package:jotter/widgets/note_details_dialog.dart';
 void main() {
   Future<ValueNotifier<Map<String, dynamic>?>> open(
     WidgetTester tester,
-    String tab,
-  ) async {
+    String tab, {
+    bool protected = false,
+  }) async {
     final updates = ValueNotifier<Map<String, dynamic>?>(null);
     final api = ApiNoteRepository.fromSession(
       baseUrl: 'https://jotter.test',
@@ -49,6 +50,7 @@ void main() {
                   content: 'Content',
                   createdAt: now,
                   updatedAt: now,
+                  isProtected: protected,
                 ),
                 initialTab: tab,
                 updates: updates,
@@ -99,6 +101,23 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('an unlocked protected note is not relocked by its own echoes', (
+    tester,
+  ) async {
+    final updates = await open(tester, 'Summary', protected: true);
+    expect(find.text('A private summary'), findsOneWidget);
+    updates.value = {
+      'type': 'noteChanged',
+      'noteId': 'note',
+      'version': 2,
+      'isProtected': true,
+    };
+    await tester.pumpAndSettle();
+    expect(find.text('A private summary'), findsOneWidget);
+    expect(find.text('Unlock note'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

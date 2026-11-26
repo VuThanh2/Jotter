@@ -370,6 +370,12 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
         if (canEdit) await _load(emit, replaceDraft: !state.isDirty);
       case 'accessRevoked':
         _autosave.cancel();
+        // Sync reports a note protected elsewhere this way; access remains,
+        // only the content must be unlocked again.
+        if (data['isProtected'] == true) {
+          emit(state.copyWith(status: EditorStatus.locked));
+          return;
+        }
         emit(
           state.copyWith(
             status: EditorStatus.unavailable,

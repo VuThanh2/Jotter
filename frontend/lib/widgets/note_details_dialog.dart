@@ -89,15 +89,18 @@ class _NoteDetailsState extends State<_NoteDetails> {
       setState(() => _permissionLost = event['permission'] == 'ReadOnly');
       return;
     }
-    if (event['type'] != 'accessRevoked' && event['isProtected'] != true) {
-      return;
-    }
+    // Only a transition matters: once this dialog knows the note is protected
+    // (including the owner's own unlock here), later echoes must not relock it.
+    final newlyProtected = event['isProtected'] == true && !_protected;
+    final revoked =
+        event['type'] == 'accessRevoked' && event['isProtected'] != true;
+    if (!revoked && !newlyProtected) return;
     _accessGeneration++;
     _privateContentInvalidated.value = true;
     _summarySubscription?.cancel();
     setState(() {
-      _accessDenied = event['isProtected'] != true;
-      if (event['isProtected'] == true) {
+      _accessDenied = revoked;
+      if (newlyProtected) {
         _protected = true;
         _locked = true;
       }
@@ -394,6 +397,9 @@ class _NoteDetailsState extends State<_NoteDetails> {
     }
     return emails.values.toList();
   }
+
+  static bool _looksLikeEmail(String value) =>
+      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(value);
 
   String _rejection(String code) => switch (code) {
     'RecipientNotRegistered' => 'No registered account with this email.',
@@ -865,26 +871,62 @@ class _NoteDetailsState extends State<_NoteDetails> {
           ),
         ),
         const SizedBox(height: 12),
-        for (final email in _invitationEmails)
+        // Rows appear once an address is complete, not for every keystroke.
+        for (final email in _invitationEmails.where(_looksLikeEmail))
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: DropdownButtonFormField<String>(
-              key: ValueKey('invite-permission:${email.toLowerCase()}'),
-              initialValue:
-                  _invitationPermissions[email.toLowerCase()] ?? 'ReadOnly',
-              decoration: InputDecoration(labelText: 'Permission for $email'),
-              items: const [
-                DropdownMenuItem(value: 'ReadOnly', child: Text('Can view')),
-                DropdownMenuItem(value: 'Edit', child: Text('Can edit')),
-              ],
-              onChanged: _busy
-                  ? null
-                  : (value) => setState(
-                      () =>
-                          _invitationPermissions[email.toLowerCase()] = value!,
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    email,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 150,
+                  child: Semantics(
+                    label: 'Permission for $email',
+                    child: DropdownButtonFormField<String>(
+                      key: ValueKey('invite-permission:${email.toLowerCase()}'),
+                      initialValue:
+                          _invitationPermissions[email.toLowerCase()] ??
+                          'ReadOnly',
+                      isDense: true,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'ReadOnly',
+                          child: Text('Can view'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Edit',
+                          child: Text('Can edit'),
+                        ),
+                      ],
+                      onChanged: _busy
+                          ? null
+                          : (value) => setState(
+                              () =>
+                                  _invitationPermissions[email.toLowerCase()] =
+                                      value!,
+                            ),
                     ),
+                  ),
+                ),
+              ],
             ),
           ),
+        const SizedBox(height: 4),
         Align(
           alignment: Alignment.centerLeft,
           child: FilledButton.icon(
