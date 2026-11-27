@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jotter/app/theme/app_theme.dart';
-import 'package:jotter/data/offline_note_repository.dart';
 import 'package:jotter/models/sync_status.dart';
 import 'package:jotter/modules/sync/sync_status/sync_status_cubit.dart';
-import 'package:jotter/widgets/sync_status_dialog.dart';
+import 'package:jotter/modules/sync/sync_status/sync_status_sheet.dart';
 
 /// Hidden while everything is synced; otherwise explains what is pending.
 class SyncStatusIndicator extends StatelessWidget {
@@ -44,10 +43,7 @@ class SyncStatusIndicator extends StatelessWidget {
             message: status.label,
             child: TextButton.icon(
               key: const Key('sync-status'),
-              onPressed: () => showSyncStatusDialog(
-                context,
-                context.read<OfflineNoteRepository>(),
-              ),
+              onPressed: () => showSyncStatusSheet(context),
               icon: Icon(icon, size: 17, color: color),
               label: Text(label, style: TextStyle(fontSize: 12, color: color)),
             ),

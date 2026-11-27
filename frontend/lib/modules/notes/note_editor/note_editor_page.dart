@@ -6,6 +6,7 @@ import 'package:jotter/app/routes/app_routes.dart';
 import 'package:jotter/app/theme/app_theme.dart';
 import 'package:jotter/data/api_note_repository.dart';
 import 'package:jotter/models/jotter_label.dart';
+import 'package:jotter/models/sync_status.dart';
 import 'package:jotter/modules/ai/summary/summary_panel.dart';
 import 'package:jotter/modules/labels/label_picker/label_picker_sheet.dart';
 import 'package:jotter/modules/labels/shared/label_store.dart';
@@ -26,6 +27,8 @@ import 'package:jotter/modules/profile/shared/unverified_banner.dart';
 import 'package:jotter/modules/protection/manage_protection/protection_panel.dart';
 import 'package:jotter/modules/protection/unlock/locked_note_view.dart';
 import 'package:jotter/modules/sharing/share_note/share_dialog.dart';
+import 'package:jotter/modules/sync/sync_status/sync_status_cubit.dart';
+import 'package:jotter/modules/sync/sync_status/sync_status_sheet.dart';
 import 'package:jotter/shared/lib/file_service.dart';
 import 'package:jotter/shared/widgets/note_card.dart';
 import 'package:jotter/shared/widgets/page_shortcuts.dart';
@@ -375,8 +378,47 @@ class _Editor extends StatelessWidget {
         ),
       if (state.saveStatus == SaveStatus.failed && state.saveError != null)
         gap(MessageStrip(state.saveError!, error: true)),
+      if (state.note != null) _SyncConflictNotice(noteId: state.note!.id),
     ];
   }
+}
+
+/// Edits made offline can collide with a newer version from another device;
+/// the sync sheet is where they are kept as a copy or discarded.
+class _SyncConflictNotice extends StatelessWidget {
+  const _SyncConflictNotice({required this.noteId});
+
+  final String noteId;
+
+  /// Once resolved, the editor shows the version that won on the server.
+  Future<void> _review(BuildContext context) async {
+    final store = context.read<NoteStore>();
+    final editor = context.read<NoteEditorBloc>();
+    await showSyncStatusSheet(context);
+    if (!store.hasConflict(noteId)) editor.add(const EditorReloadRequested());
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      BlocBuilder<SyncStatusCubit, WorkspaceSyncStatus>(
+        builder: (context, _) {
+          if (!context.read<NoteStore>().hasConflict(noteId)) {
+            return const SizedBox.shrink();
+          }
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: MessageStrip(
+              'This note changed on another device while you were offline. '
+              'Your version has not been lost.',
+              error: true,
+              action: TextButton(
+                onPressed: () => _review(context),
+                child: const Text('Review'),
+              ),
+            ),
+          );
+        },
+      );
 }
 
 class _MetaRow extends StatelessWidget {

@@ -3,16 +3,15 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jotter/app/routes/app_routes.dart';
 import 'package:jotter/app/theme/app_theme.dart';
-import 'package:jotter/data/offline_note_repository.dart';
 import 'package:jotter/models/sync_status.dart';
 import 'package:jotter/modules/authentication/logout/logout_dialog.dart';
 import 'package:jotter/modules/profile/shared/me_cubit.dart';
 import 'package:jotter/modules/profile/shared/me_state.dart';
 import 'package:jotter/modules/profile/shared/unverified_banner.dart';
 import 'package:jotter/modules/sync/sync_status/sync_status_cubit.dart';
+import 'package:jotter/modules/sync/sync_status/sync_status_sheet.dart';
 import 'package:jotter/shared/widgets/page_frame.dart';
 import 'package:jotter/shared/widgets/user_avatar.dart';
-import 'package:jotter/widgets/sync_status_dialog.dart';
 
 class AccountPage extends StatelessWidget {
   const AccountPage({super.key});
@@ -89,10 +88,7 @@ class AccountPage extends StatelessWidget {
               leading: const Icon(Icons.cloud_sync_outlined),
               title: const Text('Sync status'),
               subtitle: Text(status.label),
-              onTap: () => showSyncStatusDialog(
-                context,
-                context.read<OfflineNoteRepository>(),
-              ),
+              onTap: () => showSyncStatusSheet(context),
             ),
           ),
           const Divider(height: 32),

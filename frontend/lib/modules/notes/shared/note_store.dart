@@ -24,6 +24,11 @@ class NoteStore {
 
   JotterNote? cached(String id) => _workspace.cachedNote(id);
 
+  /// An offline edit of this note was rejected because it changed elsewhere.
+  bool hasConflict(String noteId) => _workspace.pendingChanges.any(
+    (change) => change.noteId == noteId && change.isConflict,
+  );
+
   Future<void> refresh() => _workspace.synchronize();
 
   Future<List<JotterNote>> search(String query) =>

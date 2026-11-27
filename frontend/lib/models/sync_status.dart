@@ -22,7 +22,9 @@ class WorkspaceSyncStatus {
 
   String get label {
     if (conflictCount > 0) {
-      return '$conflictCount change${conflictCount == 1 ? '' : 's'} need attention';
+      return conflictCount == 1
+          ? '1 change needs attention'
+          : '$conflictCount changes need attention';
     }
     if (isSyncing) return 'Syncing…';
     if (isOffline) {
