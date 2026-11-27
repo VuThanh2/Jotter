@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:jotter/data/api_note_repository.dart';
+import 'package:jotter/data/local_workspace_store.dart';
 import 'package:jotter/data/offline_note_repository.dart';
 import 'package:jotter/modules/labels/shared/label_store.dart';
 import 'package:jotter/modules/notes/shared/note_store.dart';
 import 'package:jotter/modules/profile/shared/me_api.dart';
 import 'package:jotter/modules/profile/shared/me_cubit.dart';
+import 'package:jotter/modules/sharing/shared_with_me/share_inbox_cubit.dart';
+import 'package:jotter/modules/sharing/shared_with_me/shared_with_me_api.dart';
+import 'package:jotter/modules/sharing/shared_with_me/shared_with_me_store.dart';
 import 'package:jotter/modules/sync/sync_status/sync_status_cubit.dart';
 import 'package:jotter/shared/lib/session.dart';
 
@@ -34,6 +38,16 @@ class SessionScope extends StatelessWidget {
           )..refresh(),
         ),
         BlocProvider(create: (_) => SyncStatusCubit(workspace.syncStatus)),
+        BlocProvider(
+          create: (context) => ShareInboxCubit(
+            context.read<NoteStore>(),
+            SharedWithMeApi(workspace.remote),
+            SharedWithMeStore(
+              PreferencesWorkspaceStore(),
+              accountId: workspace.remote.account.id,
+            ),
+          )..start(),
+        ),
       ],
       child: child,
     ),

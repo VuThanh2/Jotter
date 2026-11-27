@@ -99,6 +99,15 @@ class OfflineNoteRepository extends NoteRepository {
   List<JotterNote> get cachedNotes => List.unmodifiable(_notes.values);
   List<JotterLabel> get cachedLabels => List.unmodifiable(_labels.values);
 
+  /// When each note was shared with this account. Sharing a note again after
+  /// a revoke gives it a new time.
+  Map<String, DateTime> get sharedWithMeAt => {
+    for (final share in _shares.values)
+      if (share['recipientUserId'] == remote.account.id &&
+          share['revokedAt'] == null)
+        share['noteId'] as String: DateTime.parse(share['sharedAt'] as String),
+  };
+
   List<PendingWorkspaceChange> get pendingChanges => List.unmodifiable(
     [..._outbox, ..._volatileProtectedDrafts].map(
       (operation) => PendingWorkspaceChange(

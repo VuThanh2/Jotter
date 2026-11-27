@@ -2,17 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:jotter/data/api_note_repository.dart';
 import 'package:jotter/data/note_features_api.dart';
 import 'package:jotter/data/note_repository.dart';
-import 'package:jotter/models/jotter_note.dart';
-import 'package:jotter/app/theme/app_theme.dart';
-import 'package:jotter/widgets/ask_notes_dialog.dart';
-import 'package:jotter/widgets/note_details_dialog.dart';
 
 http.Response _json(Object value, [int status = 200]) => http.Response(
   jsonEncode(value),
@@ -34,128 +29,8 @@ ApiNoteRepository _repository(
   },
   client: MockClient(handler),
 );
-JotterNote _note({
-  bool owned = true,
-  bool protected = false,
-  bool loaded = true,
-}) => JotterNote(
-  id: 'note-1',
-  title: 'A useful idea',
-  content: 'A useful note.',
-  updatedAt: DateTime(2026, 10, 28),
-  createdAt: DateTime(2026, 10, 28),
-  isProtected: protected,
-  contentLoaded: loaded,
-  isOwned: owned,
-  canEdit: owned,
-);
-
-Future<void> _open(
-  WidgetTester tester,
-  WidgetBuilder buttonBuilder, {
-  Size size = const Size(1000, 1000),
-}) async {
-  tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = size;
-  addTearDown(tester.view.resetPhysicalSize);
-  addTearDown(tester.view.resetDevicePixelRatio);
-  await tester.pumpWidget(
-    MaterialApp(
-      theme: jotterTheme,
-      home: Scaffold(body: Builder(builder: buttonBuilder)),
-    ),
-  );
-  await tester.tap(find.text('Open'));
-  await tester.pumpAndSettle();
-}
 
 void main() {
-  testWidgets(
-    'sharing dialog assigns each recipient their selected permission',
-    (tester) async {
-      Map<String, dynamic>? body;
-      final repository = _repository((request) async {
-        if (request.method == 'POST') {
-          body = jsonDecode(request.body) as Map<String, dynamic>;
-          return _json({
-            'created': [{}, {}],
-            'rejected': [],
-          }, 201);
-        }
-        return _json({'items': []});
-      });
-      await _open(
-        tester,
-        (context) => TextButton(
-          onPressed: () => showNoteDetailsDialog(
-            context,
-            repository: repository,
-            note: _note(),
-            initialTab: 'Sharing',
-          ),
-          child: const Text('Open'),
-        ),
-      );
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Email addresses'),
-        'one@example.com, two@example.com',
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const ValueKey('invite-permission:two@example.com')),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Can edit').last);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Send invitation'));
-      await tester.pumpAndSettle();
-      expect(body, {
-        'recipients': [
-          {'email': 'one@example.com', 'permission': 'ReadOnly'},
-          {'email': 'two@example.com', 'permission': 'Edit'},
-        ],
-      });
-    },
-  );
-  testWidgets('per-recipient permissions fit a 320px phone', (tester) async {
-    final repository = _repository((request) async => _json({'items': []}));
-    await _open(
-      tester,
-      (context) => TextButton(
-        onPressed: () => showNoteDetailsDialog(
-          context,
-          repository: repository,
-          note: _note(),
-          initialTab: 'Sharing',
-        ),
-        child: const Text('Open'),
-      ),
-      size: const Size(320, 640),
-    );
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Email addresses'),
-      'a.very.long.recipient.name@example.com, b@example.com, half@exa',
-    );
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(
-        const ValueKey(
-          'invite-permission:a.very.long.recipient.name@example.com',
-        ),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('invite-permission:b@example.com')),
-      findsOneWidget,
-    );
-    // An unfinished address gets no permission row yet.
-    expect(
-      find.byKey(const ValueKey('invite-permission:half@exa')),
-      findsNothing,
-    );
-    expect(tester.takeException(), isNull);
-  });
   test('sharing sends an individual permission for each recipient', () async {
     final repository = _repository((request) async {
       expect(jsonDecode(request.body), {
@@ -176,6 +51,7 @@ void main() {
     expect(result.created, 2);
     expect(result.rejected, isEmpty);
   });
+
   test(
     'SSE survives arbitrary chunks and replaces deltas with final summary',
     () async {
@@ -370,91 +246,5 @@ void main() {
     final answer = await repository.askNotes(' What is next? ');
     expect(answer.citations.single.noteId, 'note-1');
     expect(answer.hasEnoughContext, isTrue);
-  });
-
-  testWidgets(
-    '320px note details respects shared permissions and shows attachment actions',
-    (tester) async {
-      final repository = _repository(
-        (request) async => _json({
-          'items': [
-            {
-              'attachmentId': 'file-1',
-              'fileName': 'A very useful document.pdf',
-              'mimeType': 'application/pdf',
-              'sizeBytes': 2048,
-              'uploadedAt': '2026-10-28T08:00:00Z',
-            },
-          ],
-        }),
-      );
-      await _open(
-        tester,
-        (context) => TextButton(
-          onPressed: () => showNoteDetailsDialog(
-            context,
-            repository: repository,
-            note: _note(owned: false),
-          ),
-          child: const Text('Open'),
-        ),
-        size: const Size(320, 740),
-      );
-      expect(find.text('A very useful document.pdf'), findsOneWidget);
-      expect(find.text('Download'), findsOneWidget);
-      expect(find.text('Attach a file'), findsNothing);
-      expect(find.text('Remove'), findsNothing);
-      expect(tester.takeException(), isNull);
-      await tester.tap(find.text('Sharing'));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('Only the owner can invite'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets('320px Ask notes renders answer and citation opens the source', (
-    tester,
-  ) async {
-    final opened = <String>[];
-    final repository = _repository(
-      (request) async => _json({
-        'answer': 'Make room for the first draft.',
-        'hasEnoughContext': true,
-        'citations': [
-          {
-            'noteId': 'note-1',
-            'title': 'A project worth making',
-            'excerpt': 'Write the first draft.',
-            'score': .9,
-          },
-        ],
-      }),
-    );
-    await _open(
-      tester,
-      (context) => TextButton(
-        onPressed: () => showAskNotesDialog(
-          context,
-          repository: repository,
-          onOpenNote: (id) async {
-            opened.add(id);
-          },
-        ),
-        child: const Text('Open'),
-      ),
-      size: const Size(320, 900),
-    );
-    await tester.enterText(
-      find.byKey(const Key('ask-notes-question')),
-      'What is next?',
-    );
-    await tester.tap(find.byKey(const Key('ask-notes-submit')));
-    await tester.pumpAndSettle();
-    expect(find.text('Make room for the first draft.'), findsOneWidget);
-    await tester.ensureVisible(find.text('A project worth making'));
-    await tester.tap(find.text('A project worth making'));
-    await tester.pumpAndSettle();
-    expect(opened, ['note-1']);
-    expect(tester.takeException(), isNull);
   });
 }

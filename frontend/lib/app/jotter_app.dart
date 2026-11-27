@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jotter/app/routes/app_router.dart';
+import 'package:jotter/app/routes/app_routes.dart';
 import 'package:jotter/app/session_scope.dart';
 import 'package:jotter/app/theme/app_theme.dart';
 import 'package:jotter/data/offline_note_repository.dart';
@@ -9,6 +10,7 @@ import 'package:jotter/modules/profile/preferences/preferences_api.dart';
 import 'package:jotter/modules/profile/preferences/preferences_cubit.dart';
 import 'package:jotter/modules/profile/preferences/preferences_state.dart';
 import 'package:jotter/modules/profile/preferences/preferences_store.dart';
+import 'package:jotter/modules/sharing/shared_with_me/share_announcer.dart';
 import 'package:jotter/shared/lib/session.dart';
 
 class JotterApp extends StatefulWidget {
@@ -62,7 +64,10 @@ class _JotterAppState extends State<JotterApp> {
           themeMode: preferences.themeMode,
           routerConfig: _router,
           // Dialogs use the root navigator, so the session scope wraps it.
-          builder: (context, child) => _SessionGate(child: child!),
+          builder: (context, child) => _SessionGate(
+            onOpenNote: (id) => _router.push(AppRoutes.note(id)),
+            child: child!,
+          ),
         ),
       ),
     ),
@@ -72,8 +77,9 @@ class _JotterAppState extends State<JotterApp> {
 /// Provides the session scope to every route. After sign-out the old scope
 /// stays one more frame so the page being left can still build.
 class _SessionGate extends StatefulWidget {
-  const _SessionGate({required this.child});
+  const _SessionGate({required this.onOpenNote, required this.child});
 
+  final ValueChanged<String> onOpenNote;
   final Widget child;
 
   @override
@@ -107,6 +113,12 @@ class _SessionGateState extends State<_SessionGate> {
         listener: _sessionChanged,
         child: _workspace == null
             ? widget.child
-            : SessionScope(workspace: _workspace!, child: widget.child),
+            : SessionScope(
+                workspace: _workspace!,
+                child: ShareAnnouncer(
+                  onOpenNote: widget.onOpenNote,
+                  child: widget.child,
+                ),
+              ),
       );
 }

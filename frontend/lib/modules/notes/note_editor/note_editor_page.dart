@@ -6,6 +6,7 @@ import 'package:jotter/app/routes/app_routes.dart';
 import 'package:jotter/app/theme/app_theme.dart';
 import 'package:jotter/data/api_note_repository.dart';
 import 'package:jotter/models/jotter_label.dart';
+import 'package:jotter/modules/ai/summary/summary_panel.dart';
 import 'package:jotter/modules/labels/label_picker/label_picker_sheet.dart';
 import 'package:jotter/modules/labels/shared/label_store.dart';
 import 'package:jotter/modules/notes/attachments/attachment_section.dart';
@@ -22,11 +23,13 @@ import 'package:jotter/modules/notes/shared/note_store.dart';
 import 'package:jotter/modules/profile/preferences/preferences_cubit.dart';
 import 'package:jotter/modules/profile/shared/me_cubit.dart';
 import 'package:jotter/modules/profile/shared/unverified_banner.dart';
+import 'package:jotter/modules/protection/manage_protection/protection_panel.dart';
 import 'package:jotter/modules/protection/unlock/locked_note_view.dart';
+import 'package:jotter/modules/sharing/share_note/share_dialog.dart';
 import 'package:jotter/shared/lib/file_service.dart';
 import 'package:jotter/shared/widgets/note_card.dart';
+import 'package:jotter/shared/widgets/page_shortcuts.dart';
 import 'package:jotter/shared/widgets/state_views.dart';
-import 'package:jotter/widgets/note_details_dialog.dart';
 
 /// One editor for creating and editing. Saving happens automatically.
 class NoteEditorPage extends StatelessWidget {
@@ -76,6 +79,7 @@ class _NoteEditorViewState extends State<_NoteEditorView> {
   final _content = TextEditingController();
   late final AppLifecycleListener _lifecycle;
   bool _attachmentsLoaded = false;
+  EditorStatus? _shownStatus;
 
   NoteEditorBloc get _bloc => context.read<NoteEditorBloc>();
 
@@ -114,6 +118,18 @@ class _NoteEditorViewState extends State<_NoteEditorView> {
           .showSnackBar(const SnackBar(content: Text('Note deleted.')));
       context.canPop() ? context.pop() : context.go(AppRoutes.notes);
     }
+    if (state.status != _shownStatus) {
+      _shownStatus = state.status;
+      // Dialogs over a note that was just locked or taken away must not keep
+      // showing its shares or summary.
+      if (state.status == EditorStatus.locked ||
+          state.status == EditorStatus.unavailable) {
+        Navigator.of(
+          context,
+          rootNavigator: true,
+        ).popUntil((route) => route is! PopupRoute);
+      }
+    }
   }
 
   static void _setText(TextEditingController controller, String text) =>
@@ -131,47 +147,34 @@ class _NoteEditorViewState extends State<_NoteEditorView> {
   }
 
   Future<void> _onAction(NoteEditorState state, EditorAction action) async {
-    final note = state.note!;
-    if (action == EditorAction.delete) {
-      if (await confirmDeleteNote(context, note)) {
-        _bloc.add(const EditorDeleteRequested());
-      }
-      return;
+    final note = state.note!.copyWith(title: state.title);
+    switch (action) {
+      case EditorAction.delete:
+        if (await confirmDeleteNote(context, note)) {
+          _bloc.add(const EditorDeleteRequested());
+        }
+      case EditorAction.share:
+        _flush();
+        await showShareDialog(context, note);
+      case EditorAction.protection:
+        _flush();
+        final changed = await showProtectionPanel(context, note);
+        if (changed && mounted) {
+          _bloc.add(const EditorReloadRequested());
+        }
+      case EditorAction.summary:
+        _flush();
+        await showSummaryPanel(context, noteId: note.id, noteTitle: note.title);
     }
-    _flush();
-    // Live access changes reach the open dialog too, so a revoked or newly
-    // protected note stops showing files, shares and summaries immediately.
-    final updates = ValueNotifier<Map<String, dynamic>?>(null);
-    final subscription = context
-        .read<NoteStore>()
-        .noteEvents
-        .where((event) => event['noteId'] == note.id)
-        .listen((event) => updates.value = event);
-    final bool? changed;
-    try {
-      changed = await showNoteDetailsDialog(
-        context,
-        repository: context.read<ApiNoteRepository>(),
-        note: note.copyWith(title: state.title, content: state.content),
-        initialTab: switch (action) {
-          EditorAction.share => 'Sharing',
-          EditorAction.protection => 'Protection',
-          _ => 'Summary',
-        },
-        updates: updates,
-      );
-    } finally {
-      await subscription.cancel();
-      updates.dispose();
-    }
-    if (changed == true && mounted) _bloc.add(const EditorReloadRequested());
   }
 
   @override
   Widget build(BuildContext context) =>
       BlocConsumer<NoteEditorBloc, NoteEditorState>(
         listener: _sync,
-        builder: (context, state) => CallbackShortcuts(
+        builder: (context, state) => PageShortcuts(
+          // A new note focuses its title instead.
+          autofocus: !_bloc.startsBlank,
           bindings: {
             const SingleActivator(LogicalKeyboardKey.escape): _close,
             const SingleActivator(LogicalKeyboardKey.keyS, control: true):

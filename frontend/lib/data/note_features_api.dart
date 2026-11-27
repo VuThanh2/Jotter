@@ -107,26 +107,37 @@ extension NoteFeaturesApi on ApiNoteRepository {
         'Invite between 1 and 20 registered email addresses at a time.',
       );
     }
-    final json = await request(
-      'POST',
-      '/api/notes/$noteId/shares',
-      body: {
-        'recipients': recipients.values
-            .map((item) => {'email': item.email, 'permission': item.permission})
-            .toList(),
-      },
-      idempotent: true,
-    );
+    final Map<String, dynamic> json;
+    try {
+      json = await request(
+        'POST',
+        '/api/notes/$noteId/shares',
+        body: {
+          'recipients': recipients.values
+              .map(
+                (item) => {'email': item.email, 'permission': item.permission},
+              )
+              .toList(),
+        },
+        idempotent: true,
+      );
+    } on RepositoryException catch (error) {
+      // When nobody could be invited the server still says why for each one.
+      if (error.details['rejected'] is! List) rethrow;
+      return ShareInvitationResult(0, _rejected(error.details));
+    }
     return ShareInvitationResult(
       (json['created'] as List).length,
-      (json['rejected'] as List)
-          .map(
-            (item) =>
-                (email: item['email'] as String, code: item['code'] as String),
-          )
-          .toList(),
+      _rejected(json),
     );
   }
+
+  static List<({String email, String code})> _rejected(
+    Map<String, dynamic> json,
+  ) => [
+    for (final item in json['rejected'] as List)
+      (email: item['email'] as String, code: item['code'] as String),
+  ];
 
   Future<void> changeSharePermission(
     String noteId,

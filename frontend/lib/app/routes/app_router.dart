@@ -70,6 +70,8 @@ GoRouter createAppRouter(SessionCubit session) => GoRouter(
     GoRoute(
       path: '${AppRoutes.notes}/:noteId',
       builder: (_, state) => NoteEditorPage(
+        // Changing only the id in the URL keeps the page; the editor must not.
+        key: ValueKey(state.pathParameters['noteId']),
         noteId: state.pathParameters['noteId']!,
         isNew: state.uri.queryParameters['new'] == '1',
         initialLabelIds: _split(state.uri.queryParameters['labels']),
