@@ -105,22 +105,14 @@ void main() {
   );
 
   test(
-    'anonymous validation errors expose field messages and stable server code',
+    'validation errors are shown in English with the stable server code',
     () async {
       final api = AccountAuthApi(
         'http://localhost:5080',
         client: MockClient(
           (_) async => jsonResponse({
-            'code': 'ValidationError',
-            'title': 'Invalid data',
-            'errors': {
-              'password': [
-                {
-                  'code': 'PasswordTooShort',
-                  'message': 'Choose a longer password.',
-                },
-              ],
-            },
+            'code': 'DisplayNameRequired',
+            'title': 'Tên hiển thị không được để trống.',
           }, 400),
         ),
       );
@@ -136,9 +128,9 @@ void main() {
               .having(
                 (error) => error.message,
                 'message',
-                'Choose a longer password.',
+                'Enter your display name.',
               )
-              .having((error) => error.code, 'code', 'ValidationError'),
+              .having((error) => error.code, 'code', 'DisplayNameRequired'),
         ),
       );
       api.close();

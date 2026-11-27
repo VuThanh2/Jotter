@@ -49,6 +49,12 @@ class _EditProfileViewState extends State<_EditProfileView> {
     super.dispose();
   }
 
+  void _saveName() {
+    if (_form.currentState!.validate()) {
+      context.read<EditProfileCubit>().rename(_name.text);
+    }
+  }
+
   void _applyUpdate(BuildContext context, EditProfileState state) {
     final update = state.update;
     if (update == null) return;
@@ -173,19 +179,15 @@ class _EditProfileViewState extends State<_EditProfileView> {
                 decoration: const InputDecoration(labelText: 'Display name'),
                 validator: (value) =>
                     validateRequired(value, 'your display name'),
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: state.busy ? null : (_) => _saveName(),
               ),
               const SizedBox(height: 8),
               _EmailRow(me: me),
               const SizedBox(height: 24),
               FilledButton(
                 key: const Key('save-profile'),
-                onPressed: state.busy
-                    ? null
-                    : () {
-                        if (_form.currentState!.validate()) {
-                          context.read<EditProfileCubit>().rename(_name.text);
-                        }
-                      },
+                onPressed: state.busy ? null : _saveName,
                 child: const Text('Save name'),
               ),
             ],

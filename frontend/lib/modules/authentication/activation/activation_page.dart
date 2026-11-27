@@ -82,7 +82,6 @@ class _ActivationViewState extends State<_ActivationView> {
                   key: const Key('activation-code'),
                   controller: _code,
                   label: 'Activation code',
-                  enabled: !busy,
                   onCompleted: (_) => _submit(),
                 ),
                 Align(

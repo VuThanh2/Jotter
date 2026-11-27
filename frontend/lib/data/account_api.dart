@@ -5,6 +5,9 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../models/jotter_account.dart';
+
+import 'package:jotter/shared/lib/api_error.dart';
+
 import '../models/jotter_preferences.dart';
 import 'api_note_repository.dart';
 import 'note_repository.dart';
@@ -91,28 +94,12 @@ class AccountAuthApi {
         if (decoded is Map<String, dynamic>) data = decoded;
       }
       if (response.statusCode >= 200 && response.statusCode < 300) return data;
-      final errors = data['errors'];
-      final messages = <String>[];
-      if (errors is Map) {
-        for (final value in errors.values) {
-          if (value is List) {
-            for (final error in value) {
-              if (error is Map && error['message'] is String) {
-                messages.add(error['message'] as String);
-              }
-              if (error is String) {
-                messages.add(error);
-              }
-            }
-          }
-        }
-      }
+      final code = data['code'] as String?;
+      // Server titles are not in the app's language, so map the stable codes.
       throw RepositoryException(
-        messages.isNotEmpty
-            ? messages.join('\n')
-            : data['title'] as String? ??
-                  'The request could not be completed. Please try again.',
-        code: data['code'] as String?,
+        apiErrorMessage(code) ??
+            'The request could not be completed. Please try again.',
+        code: code,
         statusCode: response.statusCode,
         details: data,
       );
