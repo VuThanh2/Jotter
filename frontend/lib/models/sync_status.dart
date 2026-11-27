@@ -21,15 +21,20 @@ class WorkspaceSyncStatus {
   final String? error;
 
   String get label {
-    if (conflictCount > 0)
-      return '$conflictCount change${conflictCount == 1 ? '' : 's'} need attention';
+    if (conflictCount > 0) {
+      return conflictCount == 1
+          ? '1 change needs attention'
+          : '$conflictCount changes need attention';
+    }
     if (isSyncing) return 'Syncing…';
-    if (isOffline)
+    if (isOffline) {
       return pendingCount > 0
           ? 'Offline · $pendingCount pending'
           : 'Offline · saved on this device';
-    if (pendingCount > 0)
+    }
+    if (pendingCount > 0) {
       return '$pendingCount pending change${pendingCount == 1 ? '' : 's'}';
+    }
     return lastSyncedAt == null ? 'Ready to sync' : 'All changes saved';
   }
 }

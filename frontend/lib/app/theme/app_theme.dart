@@ -50,6 +50,8 @@ final jotterTheme = ThemeData(
     ),
   ).apply(bodyColor: JotterColors.ink, displayColor: JotterColors.ink),
   dividerColor: JotterColors.line,
+  // Ink wells (navigation, menus, cards) show keyboard focus with this.
+  focusColor: JotterColors.ink.withValues(alpha: .16),
   inputDecorationTheme: InputDecorationTheme(
     filled: true,
     fillColor: Colors.white,
@@ -68,26 +70,15 @@ final jotterTheme = ThemeData(
     ),
     hintStyle: const TextStyle(color: JotterColors.muted, fontSize: 14),
   ),
-  filledButtonTheme: FilledButtonThemeData(
-    style: FilledButton.styleFrom(
-      minimumSize: const Size(44, 46),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-    ),
+  cardTheme: _cards(fill: Colors.white, line: JotterColors.line),
+  filledButtonTheme: _filledButtons(JotterColors.ink),
+  outlinedButtonTheme: _outlinedButtons(
+    ink: JotterColors.ink,
+    line: JotterColors.line,
   ),
-  outlinedButtonTheme: OutlinedButtonThemeData(
-    style: OutlinedButton.styleFrom(
-      foregroundColor: JotterColors.ink,
-      side: const BorderSide(color: JotterColors.line),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-      minimumSize: const Size(44, 44),
-    ),
-  ),
-  textButtonTheme: TextButtonThemeData(
-    style: TextButton.styleFrom(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-    ),
-  ),
+  textButtonTheme: _textButtons(JotterColors.ink),
+  iconButtonTheme: _iconButtons(JotterColors.ink),
+  segmentedButtonTheme: _segmentedButtons(JotterColors.ink),
   tooltipTheme: TooltipThemeData(
     decoration: BoxDecoration(
       color: JotterColors.ink,
@@ -114,14 +105,21 @@ final jotterDarkTheme = jotterTheme.copyWith(
     brightness: Brightness.dark,
   ).copyWith(surface: const Color(0xFF1B201D)),
   textTheme: jotterTheme.textTheme.apply(
-    bodyColor: const Color(0xFFE5E7DF),
-    displayColor: const Color(0xFFE5E7DF),
+    bodyColor: _darkInk,
+    displayColor: _darkInk,
   ),
   dividerColor: const Color(0xFF3D453E),
+  focusColor: _darkInk.withValues(alpha: .2),
   // copyWith would keep the light canvas behind dropdown menus.
   canvasColor: const Color(0xFF222923),
   cardColor: const Color(0xFF242B25),
   popupMenuTheme: const PopupMenuThemeData(color: Color(0xFF2B332C)),
+  // Inherited, the light theme's dark snackbar showed dark text on dark.
+  snackBarTheme: jotterTheme.snackBarTheme.copyWith(
+    backgroundColor: _darkInk,
+    contentTextStyle: const TextStyle(color: JotterColors.ink),
+    actionTextColor: JotterColors.accent,
+  ),
   inputDecorationTheme: jotterTheme.inputDecorationTheme.copyWith(
     fillColor: const Color(0xFF262D27),
     hintStyle: const TextStyle(color: Color(0xFFAEB5AA)),
@@ -133,13 +131,89 @@ final jotterDarkTheme = jotterTheme.copyWith(
   dialogTheme: jotterTheme.dialogTheme.copyWith(
     backgroundColor: const Color(0xFF222923),
   ),
-  outlinedButtonTheme: OutlinedButtonThemeData(
-    style: OutlinedButton.styleFrom(
-      foregroundColor: const Color(0xFFE5E7DF),
-      side: const BorderSide(color: Color(0xFF65705F)),
-    ),
+  cardTheme: _cards(
+    fill: const Color(0xFF242B25),
+    line: const Color(0xFF3D453E),
   ),
+  filledButtonTheme: _filledButtons(_darkInk),
+  outlinedButtonTheme: _outlinedButtons(
+    ink: _darkInk,
+    line: const Color(0xFF65705F),
+  ),
+  textButtonTheme: _textButtons(_darkInk),
+  iconButtonTheme: _iconButtons(_darkInk),
+  segmentedButtonTheme: _segmentedButtons(_darkInk),
 );
+
+const _darkInk = Color(0xFFE5E7DF);
+
+/// Flat like note cards; Material's default takes a reddish seed tint.
+CardThemeData _cards({required Color fill, required Color line}) =>
+    CardThemeData(
+      color: fill,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: line),
+      ),
+    );
+
+/// Material's faint focus layer is easy to miss, so keyboard focus also
+/// draws a ring in the text colour, visible on accent buttons too.
+WidgetStateProperty<BorderSide?> _focusRing(Color ring, [BorderSide? rest]) =>
+    WidgetStateProperty.resolveWith(
+      (states) => states.contains(WidgetState.focused)
+          ? BorderSide(color: ring, width: 2)
+          : rest,
+    );
+
+FilledButtonThemeData _filledButtons(Color ring) => FilledButtonThemeData(
+  style: FilledButton.styleFrom(
+    minimumSize: const Size(44, 46),
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+  ).copyWith(side: _focusRing(ring)),
+);
+
+OutlinedButtonThemeData _outlinedButtons({
+  required Color ink,
+  required Color line,
+}) => OutlinedButtonThemeData(
+  style: OutlinedButton.styleFrom(
+    foregroundColor: ink,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+    minimumSize: const Size(44, 44),
+  ).copyWith(side: _focusRing(ink, BorderSide(color: line))),
+);
+
+TextButtonThemeData _textButtons(Color ring) => TextButtonThemeData(
+  style: TextButton.styleFrom(
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  ).copyWith(side: _focusRing(ring)),
+);
+
+IconButtonThemeData _iconButtons(Color ring) =>
+    IconButtonThemeData(style: ButtonStyle(side: _focusRing(ring)));
+
+/// Segments share one outline, so focus shows as a stronger fill instead.
+SegmentedButtonThemeData _segmentedButtons(Color ink) =>
+    SegmentedButtonThemeData(
+      style: ButtonStyle(
+        overlayColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.focused)) {
+            return ink.withValues(alpha: .22);
+          }
+          if (states.contains(WidgetState.pressed)) {
+            return ink.withValues(alpha: .12);
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return ink.withValues(alpha: .06);
+          }
+          return null;
+        }),
+      ),
+    );
 
 extension JotterPaletteContext on BuildContext {
   JotterPalette get jotterColors =>
@@ -151,10 +225,21 @@ class JotterPalette {
   final bool dark;
   Color get paper => dark ? const Color(0xFF1B201D) : JotterColors.paper;
   Color get sidebar => dark ? const Color(0xFF242B25) : JotterColors.sidebar;
-  Color get ink => dark ? const Color(0xFFE5E7DF) : JotterColors.ink;
+  Color get ink => dark ? _darkInk : JotterColors.ink;
   Color get muted => dark ? const Color(0xFFB0B7AB) : JotterColors.muted;
   Color get line => dark ? const Color(0xFF3D453E) : JotterColors.line;
   Color get selected =>
       dark ? const Color(0xFF323B33) : const Color(0xFFE7E5DC);
-  Color tint(Color color) => dark ? Color.lerp(color, paper, .85)! : color;
+
+  /// Dark mode keeps a pastel's hue at a dark lightness; blending it into the
+  /// paper made every note colour the same grey.
+  Color tint(Color color) {
+    if (!dark) return color;
+    final hsl = HSLColor.fromColor(color);
+    if (hsl.saturation < .05) return Color.lerp(color, paper, .85)!;
+    return hsl
+        .withSaturation(hsl.saturation.clamp(0, .32))
+        .withLightness(.21)
+        .toColor();
+  }
 }

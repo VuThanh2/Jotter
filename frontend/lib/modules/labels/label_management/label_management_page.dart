@@ -85,7 +85,14 @@ class _LabelManagementView extends StatelessWidget {
             const SizedBox(height: 8),
             MessageStrip(state.error!, error: true),
           ],
-          if (state.labels.isEmpty)
+          if (state.status == LabelsStatus.loading)
+            const LoadingView()
+          else if (state.status == LabelsStatus.failure)
+            ErrorView(
+              message: context.read<LabelManagementCubit>().loadError,
+              onRetry: context.read<LabelManagementCubit>().retry,
+            )
+          else if (state.labels.isEmpty)
             EmptyView(
               icon: Icons.label_outline_rounded,
               title: 'No labels yet',

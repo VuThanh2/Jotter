@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:jotter/shared/lib/api_error.dart';
 
 import '../models/jotter_account.dart';
 import '../models/jotter_label.dart';
@@ -358,8 +359,9 @@ class ApiNoteRepository extends NoteRepository {
   }
 
   Uri _uri(String path) {
-    if (!path.startsWith('/') || path.startsWith('//'))
+    if (!path.startsWith('/') || path.startsWith('//')) {
       throw const RepositoryException('Invalid API path.');
+    }
     return Uri.parse('$_baseUri$path');
   }
 
@@ -444,8 +446,9 @@ class ApiNoteRepository extends NoteRepository {
     controller = StreamController<String>(
       onListen: () async {
         try {
-          if (_closed)
+          if (_closed) {
             throw const RepositoryException('This session has ended.');
+          }
           final request = http.AbortableRequest(
             method,
             _uri(path),
@@ -607,7 +610,7 @@ class ApiNoteRepository extends NoteRepository {
       (423, _) => 'This note is locked. Enter its password to open it.',
       (429, _) => 'Too many attempts. Please wait a moment and try again.',
       _ =>
-        data['title'] as String? ??
+        apiErrorMessage(code) ??
             'Jotter could not complete this request. Please try again.',
     };
     throw RepositoryException(

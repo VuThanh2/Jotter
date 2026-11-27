@@ -20,6 +20,7 @@ import 'package:jotter/shared/widgets/adaptive_scaffold.dart';
 import 'package:jotter/shared/widgets/note_card.dart';
 import 'package:jotter/shared/widgets/note_collection.dart';
 import 'package:jotter/shared/widgets/note_search_bar.dart';
+import 'package:jotter/shared/widgets/page_shortcuts.dart';
 import 'package:jotter/shared/widgets/permission_badge.dart';
 import 'package:jotter/shared/widgets/state_views.dart';
 
@@ -61,7 +62,8 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
 
   void _notify(String? message) {
     if (message == null || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _onAction(JotterNote note, NoteCardAction action) async {
@@ -86,53 +88,59 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
   }
 
   @override
-  Widget build(BuildContext context) => CallbackShortcuts(
+  Widget build(BuildContext context) => PageShortcuts(
+    autofocus: true,
     bindings: {
       const SingleActivator(LogicalKeyboardKey.keyN, control: true): _newNote,
       const SingleActivator(LogicalKeyboardKey.keyN, meta: true): _newNote,
+      // Browsers keep Ctrl+N for a new window.
+      const SingleActivator(LogicalKeyboardKey.keyN, alt: true): _newNote,
       const SingleActivator(LogicalKeyboardKey.keyK, control: true):
           _searchFocus.requestFocus,
       const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
           _searchFocus.requestFocus,
     },
-    child: Focus(
-      autofocus: true,
-      child: Scaffold(
-        floatingActionButton: context.isCompact
-            ? FloatingActionButton(
-                key: const Key('new-note-fab'),
-                tooltip: 'New note',
-                onPressed: _newNote,
-                child: const Icon(Icons.add_rounded),
-              )
-            : null,
-        body: BlocBuilder<NotesHomeCubit, NotesHomeState>(
-          builder: (context, state) {
-            final preferences = context.watch<PreferencesCubit>().state;
-            final horizontal = context.isCompact ? 16.0 : 32.0;
-            return RefreshIndicator(
-              onRefresh: context.read<NotesHomeCubit>().refresh,
-              child: CustomScrollView(
-                slivers: [
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(horizontal, 24, horizontal, 8),
-                    sliver: SliverToBoxAdapter(
-                      child: _Header(
-                        state: state,
-                        search: _search,
-                        searchFocus: _searchFocus,
-                        listMode: preferences.listMode,
-                        onNewNote: _newNote,
-                      ),
+    child: Scaffold(
+      floatingActionButton: context.isCompact
+          ? FloatingActionButton(
+              key: const Key('new-note-fab'),
+              tooltip: 'New note',
+              onPressed: _newNote,
+              child: const Icon(Icons.add_rounded),
+            )
+          : null,
+      body: BlocBuilder<NotesHomeCubit, NotesHomeState>(
+        builder: (context, state) {
+          final preferences = context.watch<PreferencesCubit>().state;
+          final horizontal = context.isCompact ? 16.0 : 32.0;
+          return RefreshIndicator(
+            onRefresh: context.read<NotesHomeCubit>().refresh,
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(horizontal, 24, horizontal, 8),
+                  sliver: SliverToBoxAdapter(
+                    child: _Header(
+                      state: state,
+                      search: _search,
+                      searchFocus: _searchFocus,
+                      listMode: preferences.listMode,
+                      onNewNote: _newNote,
                     ),
                   ),
-                  ..._body(context, state, preferences, horizontal),
-                  const SliverToBoxAdapter(child: SizedBox(height: 96)),
-                ],
-              ),
-            );
-          },
-        ),
+                ),
+                if (state.refreshing && state.status != NotesStatus.loading)
+                  const SliverToBoxAdapter(
+                    child: LinearProgressIndicator(
+                      semanticsLabel: 'Refreshing notes',
+                    ),
+                  ),
+                ..._body(context, state, preferences, horizontal),
+                const SliverToBoxAdapter(child: SizedBox(height: 96)),
+              ],
+            ),
+          );
+        },
       ),
     ),
   );
@@ -155,6 +163,16 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
           ErrorView(
             message: state.error ?? 'Your notes could not be loaded.',
             onRetry: context.read<NotesHomeCubit>().refresh,
+          ),
+        ),
+      ];
+    }
+    if (state.isSearching && state.error != null) {
+      return [
+        fill(
+          ErrorView(
+            message: state.error!,
+            onRetry: context.read<NotesHomeCubit>().retrySearch,
           ),
         ),
       ];
@@ -274,10 +292,7 @@ class _Header extends StatelessWidget {
           children: [
             Text('Notes', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(width: 10),
-            Text(
-              '$count',
-              style: TextStyle(color: context.jotterColors.muted),
-            ),
+            Text('$count', style: TextStyle(color: context.jotterColors.muted)),
             const Spacer(),
             SegmentedButton<bool>(
               key: const Key('view-toggle'),
@@ -303,11 +318,14 @@ class _Header extends StatelessWidget {
             ),
             if (!context.isCompact) ...[
               const SizedBox(width: 12),
-              FilledButton.icon(
-                key: const Key('new-note'),
-                onPressed: onNewNote,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('New note'),
+              Tooltip(
+                message: 'New note (Alt+N)',
+                child: FilledButton.icon(
+                  key: const Key('new-note'),
+                  onPressed: onNewNote,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('New note'),
+                ),
               ),
             ],
           ],
@@ -327,7 +345,9 @@ class _Header extends StatelessWidget {
           onToggle: cubit.toggleLabel,
           onClear: cubit.clearLabels,
         ),
-        if (state.error != null && state.status == NotesStatus.ready) ...[
+        if (state.error != null &&
+            state.status == NotesStatus.ready &&
+            !state.isSearching) ...[
           const SizedBox(height: 12),
           MessageStrip(state.error!, error: true),
         ],

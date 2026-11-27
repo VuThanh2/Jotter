@@ -4,7 +4,11 @@ import 'package:jotter/models/note_features.dart';
 enum UploadStatus { uploading, done, failed }
 
 class UploadItem extends Equatable {
-  const UploadItem(this.name, {this.status = UploadStatus.uploading, this.error});
+  const UploadItem(
+    this.name, {
+    this.status = UploadStatus.uploading,
+    this.error,
+  });
 
   final String name;
   final UploadStatus status;

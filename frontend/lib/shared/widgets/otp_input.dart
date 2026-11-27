@@ -8,25 +8,23 @@ class OtpInput extends StatelessWidget {
     super.key,
     required this.controller,
     this.label = 'Six-digit code',
-    this.enabled = true,
     this.autofocus = true,
     this.onCompleted,
   });
 
   final TextEditingController controller;
   final String label;
-  final bool enabled;
   final bool autofocus;
   final ValueChanged<String>? onCompleted;
 
   @override
   Widget build(BuildContext context) => TextFormField(
+    // Never locked while a code is checked (the cubits ignore repeats), so a
+    // rejected code can be corrected without clicking back in.
     controller: controller,
-    enabled: enabled,
     autofocus: autofocus,
     keyboardType: TextInputType.number,
     textInputAction: TextInputAction.done,
-    autofillHints: const [AutofillHints.oneTimeCode],
     style: const TextStyle(fontSize: 20, letterSpacing: 8),
     inputFormatters: [
       FilteringTextInputFormatter.digitsOnly,

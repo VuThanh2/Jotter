@@ -104,7 +104,8 @@ class MessageStrip extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
         decoration: BoxDecoration(
-          color: error ? scheme.errorContainer : scheme.secondaryContainer,
+          // Seeded container tones lean red; info uses the neutral palette.
+          color: error ? scheme.errorContainer : context.jotterColors.selected,
           borderRadius: BorderRadius.circular(9),
         ),
         child: Row(
@@ -115,9 +116,7 @@ class MessageStrip extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   height: 1.45,
-                  color: error
-                      ? scheme.onErrorContainer
-                      : scheme.onSecondaryContainer,
+                  color: error ? scheme.onErrorContainer : scheme.onSurface,
                 ),
               ),
             ),

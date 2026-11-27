@@ -69,8 +69,36 @@ class _SharedWithMePageState extends State<SharedWithMePage> {
                     ),
                   ),
                 ),
-                if (state.loading && notes.isEmpty)
+                if (state.loading && state.notes.isNotEmpty)
+                  const SliverToBoxAdapter(
+                    child: LinearProgressIndicator(
+                      semanticsLabel: 'Refreshing shared notes',
+                    ),
+                  ),
+                if (state.error != null && state.notes.isNotEmpty)
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 16),
+                    sliver: SliverToBoxAdapter(
+                      child: MessageStrip(
+                        state.error!,
+                        error: true,
+                        action: TextButton(
+                          onPressed: cubit.refresh,
+                          child: const Text('Retry'),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (state.loading && state.notes.isEmpty)
                   const SliverFillRemaining(child: LoadingView())
+                else if (state.error != null && state.notes.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: ErrorView(
+                      message: state.error!,
+                      onRetry: cubit.refresh,
+                    ),
+                  )
                 else if (notes.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,

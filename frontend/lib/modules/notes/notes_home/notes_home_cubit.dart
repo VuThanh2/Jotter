@@ -27,29 +27,68 @@ class NotesHomeCubit extends Cubit<NotesHomeState> {
   int _searchGeneration = 0;
 
   Future<void> refresh() async {
+    if (state.refreshing || isClosed) return;
+    emit(state.copyWith(refreshing: true, error: state.error));
     try {
       await _notes.refresh();
-      if (!isClosed) emit(state.copyWith(status: NotesStatus.ready));
+      if (isClosed) return;
+      final sync = _notes.syncStatus.value;
+      if (sync.isOffline || (sync.error != null && sync.conflictCount == 0)) {
+        emit(
+          state.copyWith(
+            status: _notes.notes.isEmpty
+                ? NotesStatus.failure
+                : NotesStatus.ready,
+            refreshing: false,
+            error: sync.isOffline
+                ? 'Your notes could not be refreshed while offline. Check your connection and try again.'
+                : 'Your notes could not be refreshed. Please try again.',
+          ),
+        );
+      } else {
+        emit(state.copyWith(status: NotesStatus.ready, refreshing: false));
+      }
     } catch (error) {
       if (isClosed) return;
       // With a local cache the list still works; only an empty first load fails.
       emit(
         state.notes.isEmpty
-            ? state.copyWith(status: NotesStatus.failure, error: _message(error))
-            : state.copyWith(status: NotesStatus.ready),
+            ? state.copyWith(
+                status: NotesStatus.failure,
+                refreshing: false,
+                error: _message(error),
+              )
+            : state.copyWith(
+                status: NotesStatus.ready,
+                refreshing: false,
+                error: _message(error),
+              ),
       );
     }
   }
 
   void search(String query) {
-    emit(state.copyWith(query: query, error: state.error));
+    // Invalidates any in-flight search so a slow, older reply cannot win.
+    _searchGeneration++;
     if (query.trim().isEmpty) {
       _searchDebounce.cancel();
-      _searchGeneration++;
-      emit(state.copyWith(clearSearchResults: true, searching: false));
+      emit(
+        state.copyWith(
+          query: query,
+          clearSearchResults: true,
+          searching: false,
+        ),
+      );
       return;
     }
+    // Previous results stay visible during the debounce, so the list does not
+    // flash "Nothing matches" on every keystroke; a first search shows loading.
+    emit(state.copyWith(query: query, searching: true));
     _searchDebounce.run(_runSearch);
+  }
+
+  void retrySearch() {
+    if (state.isSearching) _runSearch();
   }
 
   void toggleLabel(String labelId) {
@@ -67,7 +106,8 @@ class NotesHomeCubit extends Cubit<NotesHomeState> {
   Future<String?> setLabels(JotterNote note, List<String> labelIds) =>
       _attempt(() => _notes.setLabels(note, labelIds));
 
-  Future<String?> delete(JotterNote note) => _attempt(() => _notes.delete(note.id));
+  Future<String?> delete(JotterNote note) =>
+      _attempt(() => _notes.delete(note.id));
 
   void _notesChanged(List<JotterNote> notes) {
     if (isClosed) return;

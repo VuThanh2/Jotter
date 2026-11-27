@@ -45,7 +45,9 @@ class NoteEditorState extends Equatable {
   final bool deleted;
 
   bool get canEdit =>
-      status == EditorStatus.ready && (note?.canEdit ?? false) && !permissionLost;
+      status == EditorStatus.ready &&
+      (note?.canEdit ?? false) &&
+      !permissionLost;
 
   ReadOnlyReason? get readOnlyReason {
     if (note == null || status != EditorStatus.ready) return null;
@@ -88,8 +90,7 @@ class NoteEditorState extends Equatable {
     unlockError: unlockError,
     permissionLost: permissionLost ?? this.permissionLost,
     unavailableReason: unavailableReason ?? this.unavailableReason,
-    newerVersionAvailable:
-        newerVersionAvailable ?? this.newerVersionAvailable,
+    newerVersionAvailable: newerVersionAvailable ?? this.newerVersionAvailable,
     presence: presence ?? this.presence,
     deleted: deleted ?? this.deleted,
   );

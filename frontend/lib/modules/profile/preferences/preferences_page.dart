@@ -42,28 +42,42 @@ class PreferencesPage extends StatelessWidget {
               style: TextStyle(color: context.jotterColors.muted),
             ),
             const _Heading('Appearance'),
-            SegmentedButton<String>(
-              key: const Key('theme-mode'),
-              segments: const [
-                ButtonSegment(
-                  value: 'System',
-                  label: Text('System'),
-                  icon: Icon(Icons.brightness_auto_outlined),
-                ),
-                ButtonSegment(
-                  value: 'Light',
-                  label: Text('Light'),
-                  icon: Icon(Icons.light_mode_outlined),
-                ),
-                ButtonSegment(
-                  value: 'Dark',
-                  label: Text('Dark'),
-                  icon: Icon(Icons.dark_mode_outlined),
-                ),
-              ],
-              selected: {preferences.themeMode},
-              onSelectionChanged: (value) =>
-                  update((p) => p.copyWith(themeMode: value.single)),
+            // On narrow phones three icon+label segments would break
+            // "System" mid-word, so icons give way to the labels there.
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 340;
+                return SegmentedButton<String>(
+                  key: const Key('theme-mode'),
+                  showSelectedIcon: !compact,
+                  segments: [
+                    ButtonSegment(
+                      value: 'System',
+                      label: const _OneLine('System'),
+                      icon: compact
+                          ? null
+                          : const Icon(Icons.brightness_auto_outlined),
+                    ),
+                    ButtonSegment(
+                      value: 'Light',
+                      label: const _OneLine('Light'),
+                      icon: compact
+                          ? null
+                          : const Icon(Icons.light_mode_outlined),
+                    ),
+                    ButtonSegment(
+                      value: 'Dark',
+                      label: const _OneLine('Dark'),
+                      icon: compact
+                          ? null
+                          : const Icon(Icons.dark_mode_outlined),
+                    ),
+                  ],
+                  selected: {preferences.themeMode},
+                  onSelectionChanged: (value) =>
+                      update((p) => p.copyWith(themeMode: value.single)),
+                );
+              },
             ),
             const _Heading('Note text size'),
             _FontSizeSlider(
@@ -115,11 +129,13 @@ class PreferencesPage extends StatelessWidget {
                     color: context.jotterColors.muted,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Saved on this device. Syncing to your account…',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: context.jotterColors.muted,
+                  Expanded(
+                    child: Text(
+                      'Saved on this device. Syncing to your account…',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: context.jotterColors.muted,
+                      ),
                     ),
                   ),
                 ],
@@ -250,4 +266,17 @@ class _ColorSwatch extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Shrinks a segment label to fit rather than breaking it mid-word.
+class _OneLine extends StatelessWidget {
+  const _OneLine(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Text(text, maxLines: 1, softWrap: false),
+  );
 }

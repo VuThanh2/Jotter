@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:jotter/data/offline_note_repository.dart';
 import 'package:jotter/models/jotter_label.dart';
+import 'package:jotter/models/sync_status.dart';
 
 class LabelStore {
   LabelStore(this._workspace);
@@ -7,6 +9,11 @@ class LabelStore {
   final OfflineNoteRepository _workspace;
 
   List<JotterLabel> get labels => _sorted(_workspace.cachedLabels);
+
+  /// Labels arrive with workspace sync, so its status is their load status.
+  ValueListenable<WorkspaceSyncStatus> get syncStatus => _workspace.syncStatus;
+
+  Future<void> refresh() => _workspace.synchronize();
 
   Stream<List<JotterLabel>> watchLabels() async* {
     yield labels;

@@ -6,6 +6,8 @@ import 'package:jotter/app/routes/app_routes.dart';
 import 'package:jotter/app/theme/app_theme.dart';
 import 'package:jotter/data/api_note_repository.dart';
 import 'package:jotter/models/jotter_label.dart';
+import 'package:jotter/models/sync_status.dart';
+import 'package:jotter/modules/ai/summary/summary_panel.dart';
 import 'package:jotter/modules/labels/label_picker/label_picker_sheet.dart';
 import 'package:jotter/modules/labels/shared/label_store.dart';
 import 'package:jotter/modules/notes/attachments/attachment_section.dart';
@@ -22,11 +24,15 @@ import 'package:jotter/modules/notes/shared/note_store.dart';
 import 'package:jotter/modules/profile/preferences/preferences_cubit.dart';
 import 'package:jotter/modules/profile/shared/me_cubit.dart';
 import 'package:jotter/modules/profile/shared/unverified_banner.dart';
+import 'package:jotter/modules/protection/manage_protection/protection_panel.dart';
 import 'package:jotter/modules/protection/unlock/locked_note_view.dart';
+import 'package:jotter/modules/sharing/share_note/share_dialog.dart';
+import 'package:jotter/modules/sync/sync_status/sync_status_cubit.dart';
+import 'package:jotter/modules/sync/sync_status/sync_status_sheet.dart';
 import 'package:jotter/shared/lib/file_service.dart';
 import 'package:jotter/shared/widgets/note_card.dart';
+import 'package:jotter/shared/widgets/page_shortcuts.dart';
 import 'package:jotter/shared/widgets/state_views.dart';
-import 'package:jotter/widgets/note_details_dialog.dart';
 
 /// One editor for creating and editing. Saving happens automatically.
 class NoteEditorPage extends StatelessWidget {
@@ -76,6 +82,7 @@ class _NoteEditorViewState extends State<_NoteEditorView> {
   final _content = TextEditingController();
   late final AppLifecycleListener _lifecycle;
   bool _attachmentsLoaded = false;
+  EditorStatus? _shownStatus;
 
   NoteEditorBloc get _bloc => context.read<NoteEditorBloc>();
 
@@ -110,10 +117,21 @@ class _NoteEditorViewState extends State<_NoteEditorView> {
       context.read<AttachmentsCubit>().load();
     }
     if (state.deleted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Note deleted.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Note deleted.')));
       context.canPop() ? context.pop() : context.go(AppRoutes.notes);
+    }
+    if (state.status != _shownStatus) {
+      _shownStatus = state.status;
+      // Dialogs over a note that was just locked or taken away must not keep
+      // showing its shares or summary.
+      if (state.status == EditorStatus.locked ||
+          state.status == EditorStatus.unavailable) {
+        Navigator.of(
+          context,
+          rootNavigator: true,
+        ).popUntil((route) => route is! PopupRoute);
+      }
     }
   }
 
@@ -132,32 +150,34 @@ class _NoteEditorViewState extends State<_NoteEditorView> {
   }
 
   Future<void> _onAction(NoteEditorState state, EditorAction action) async {
-    final note = state.note!;
-    if (action == EditorAction.delete) {
-      if (await confirmDeleteNote(context, note)) {
-        _bloc.add(const EditorDeleteRequested());
-      }
-      return;
+    final note = state.note!.copyWith(title: state.title);
+    switch (action) {
+      case EditorAction.delete:
+        if (await confirmDeleteNote(context, note)) {
+          _bloc.add(const EditorDeleteRequested());
+        }
+      case EditorAction.share:
+        _flush();
+        await showShareDialog(context, note);
+      case EditorAction.protection:
+        _flush();
+        final changed = await showProtectionPanel(context, note);
+        if (changed && mounted) {
+          _bloc.add(const EditorReloadRequested());
+        }
+      case EditorAction.summary:
+        _flush();
+        await showSummaryPanel(context, noteId: note.id, noteTitle: note.title);
     }
-    _flush();
-    final changed = await showNoteDetailsDialog(
-      context,
-      repository: context.read<ApiNoteRepository>(),
-      note: note.copyWith(title: state.title, content: state.content),
-      initialTab: switch (action) {
-        EditorAction.share => 'Sharing',
-        EditorAction.protection => 'Protection',
-        _ => 'Summary',
-      },
-    );
-    if (changed == true) _bloc.add(const EditorReloadRequested());
   }
 
   @override
   Widget build(BuildContext context) =>
       BlocConsumer<NoteEditorBloc, NoteEditorState>(
         listener: _sync,
-        builder: (context, state) => CallbackShortcuts(
+        builder: (context, state) => PageShortcuts(
+          // A new note focuses its title instead.
+          autofocus: !_bloc.startsBlank,
           bindings: {
             const SingleActivator(LogicalKeyboardKey.escape): _close,
             const SingleActivator(LogicalKeyboardKey.keyS, control: true):
@@ -358,8 +378,47 @@ class _Editor extends StatelessWidget {
         ),
       if (state.saveStatus == SaveStatus.failed && state.saveError != null)
         gap(MessageStrip(state.saveError!, error: true)),
+      if (state.note != null) _SyncConflictNotice(noteId: state.note!.id),
     ];
   }
+}
+
+/// Edits made offline can collide with a newer version from another device;
+/// the sync sheet is where they are kept as a copy or discarded.
+class _SyncConflictNotice extends StatelessWidget {
+  const _SyncConflictNotice({required this.noteId});
+
+  final String noteId;
+
+  /// Once resolved, the editor shows the version that won on the server.
+  Future<void> _review(BuildContext context) async {
+    final store = context.read<NoteStore>();
+    final editor = context.read<NoteEditorBloc>();
+    await showSyncStatusSheet(context);
+    if (!store.hasConflict(noteId)) editor.add(const EditorReloadRequested());
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      BlocBuilder<SyncStatusCubit, WorkspaceSyncStatus>(
+        builder: (context, _) {
+          if (!context.read<NoteStore>().hasConflict(noteId)) {
+            return const SizedBox.shrink();
+          }
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: MessageStrip(
+              'This note changed on another device while you were offline. '
+              'Your version has not been lost.',
+              error: true,
+              action: TextButton(
+                onPressed: () => _review(context),
+                child: const Text('Review'),
+              ),
+            ),
+          );
+        },
+      );
 }
 
 class _MetaRow extends StatelessWidget {

@@ -33,6 +33,7 @@ class NoteCard extends StatefulWidget {
 
 class _NoteCardState extends State<NoteCard> {
   bool _hovered = false;
+  bool _focused = false;
 
   JotterNote get _note => widget.note;
 
@@ -74,12 +75,17 @@ class _NoteCardState extends State<NoteCard> {
                   ? palette.muted.withValues(alpha: .5)
                   : palette.ink.withValues(alpha: .08),
             ),
+            // Same ring as buttons, drawn outside so focus moves nothing.
+            boxShadow: _focused
+                ? [BoxShadow(color: palette.ink, spreadRadius: 2)]
+                : null,
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(13),
               onTap: widget.onOpen,
+              onFocusChange: (focused) => setState(() => _focused = focused),
               child: Padding(
                 padding: EdgeInsets.all(widget.listMode ? 16 : 20),
                 child: widget.listMode ? _list(context) : _grid(context),

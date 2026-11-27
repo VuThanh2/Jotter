@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:jotter/app/routes/app_routes.dart';
@@ -7,6 +8,7 @@ import 'package:jotter/models/note_features.dart';
 import 'package:jotter/modules/notes/attachments/attachment_viewer_cubit.dart';
 import 'package:jotter/modules/notes/attachments/attachments_api.dart';
 import 'package:jotter/modules/profile/shared/unverified_banner.dart';
+import 'package:jotter/shared/widgets/page_shortcuts.dart';
 import 'package:jotter/shared/widgets/state_views.dart';
 import 'package:video_player/video_player.dart';
 
@@ -22,6 +24,9 @@ class AttachmentViewerPage extends StatelessWidget {
   final String attachmentId;
   final NoteAttachment? file;
 
+  void _close(BuildContext context) =>
+      context.canPop() ? context.pop() : context.go(AppRoutes.note(noteId));
+
   @override
   Widget build(BuildContext context) => BlocProvider(
     create: (context) => AttachmentViewerCubit(
@@ -35,27 +40,30 @@ class AttachmentViewerPage extends StatelessWidget {
       listener: (context, state) =>
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text(state.notice!))),
-      builder: (context, state) => Scaffold(
-        appBar: AppBar(
-          title: Text(state.file?.name ?? 'Attachment'),
-          leading: BackButton(
-            onPressed: () => context.canPop()
-                ? context.pop()
-                : context.go(AppRoutes.note(noteId)),
+      builder: (context, state) => PageShortcuts(
+        autofocus: true,
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): () =>
+              _close(context),
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(state.file?.name ?? 'Attachment'),
+            leading: BackButton(onPressed: () => _close(context)),
+            actions: [
+              const UnverifiedBanner(compact: true),
+              IconButton(
+                key: const Key('download-attachment'),
+                tooltip: 'Download',
+                onPressed: state.file == null
+                    ? null
+                    : context.read<AttachmentViewerCubit>().download,
+                icon: const Icon(Icons.download_rounded),
+              ),
+            ],
           ),
-          actions: [
-            const UnverifiedBanner(compact: true),
-            IconButton(
-              key: const Key('download-attachment'),
-              tooltip: 'Download',
-              onPressed: state.file == null
-                  ? null
-                  : context.read<AttachmentViewerCubit>().download,
-              icon: const Icon(Icons.download_rounded),
-            ),
-          ],
+          body: SafeArea(child: _body(context, state)),
         ),
-        body: SafeArea(child: _body(context, state)),
       ),
     ),
   );

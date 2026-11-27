@@ -45,8 +45,12 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
   final String noteId;
   final bool isNew;
   final List<String> initialLabelIds;
+
+  /// A `?new=1` link reopened after its first save loads the saved note.
+  late final bool startsBlank = isNew && _store.cached(noteId) == null;
   final Debouncer _autosave;
   StreamSubscription<Map<String, dynamic>>? _events;
+  StreamSubscription<bool>? _unprotected;
   bool _saving = false;
   bool _saveAgain = false;
   int? _remoteVersionDuringSave;
@@ -56,7 +60,7 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
     Emitter<NoteEditorState> emit,
   ) async {
     final cached = _store.cached(noteId);
-    if (isNew && cached == null) {
+    if (startsBlank) {
       final now = DateTime.now();
       emit(
         NoteEditorState(
@@ -80,6 +84,16 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
     _events = _store.noteEvents
         .where((event) => event['noteId'] == noteId)
         .listen((event) => add(EditorRemoteEvent(event)));
+    // A password removed elsewhere reaches this device through sync only.
+    _unprotected = _store
+        .watchNotes()
+        .map((notes) => notes.any((n) => n.id == noteId && !n.isProtected))
+        .distinct()
+        .listen((open) {
+          if (open && state.status == EditorStatus.locked) {
+            add(const EditorReloadRequested());
+          }
+        });
     unawaited(_store.watch(noteId));
     await _load(emit, replaceDraft: false);
   }
@@ -370,6 +384,12 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
         if (canEdit) await _load(emit, replaceDraft: !state.isDirty);
       case 'accessRevoked':
         _autosave.cancel();
+        // Sync reports a note protected elsewhere this way; access remains,
+        // only the content must be unlocked again.
+        if (data['isProtected'] == true) {
+          emit(state.copyWith(status: EditorStatus.locked));
+          return;
+        }
         emit(
           state.copyWith(
             status: EditorStatus.unavailable,
@@ -387,6 +407,7 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
   Future<void> close() async {
     _autosave.dispose();
     await _events?.cancel();
+    await _unprotected?.cancel();
     final draft = state;
     final unsaved = draft.isDirty || draft.isNew;
     if (!draft.deleted && draft.canEdit && draft.hasText && unsaved) {
@@ -399,7 +420,7 @@ class NoteEditorBloc extends Bloc<NoteEditorEvent, NoteEditorState> {
         // The offline outbox keeps whatever reached it.
       }
     }
-    unawaited(_store.watch(null));
+    unawaited(_store.unwatch(noteId));
     return super.close();
   }
 }

@@ -12,6 +12,7 @@ class NotesHomeState extends Equatable {
     this.query = '',
     this.searchResults,
     this.searching = false,
+    this.refreshing = false,
     this.selectedLabelIds = const {},
     this.error,
     this.revision = 0,
@@ -25,6 +26,7 @@ class NotesHomeState extends Equatable {
   /// Server results for [query]; shared notes may appear here too.
   final List<JotterNote>? searchResults;
   final bool searching;
+  final bool refreshing;
   final Set<String> selectedLabelIds;
   final String? error;
 
@@ -41,8 +43,7 @@ class NotesHomeState extends Equatable {
     return source
         .where(
           (note) =>
-              !isFiltering ||
-              note.labelIds.any(selectedLabelIds.contains),
+              !isFiltering || note.labelIds.any(selectedLabelIds.contains),
         )
         .toList();
   }
@@ -72,6 +73,7 @@ class NotesHomeState extends Equatable {
     List<JotterNote>? searchResults,
     bool clearSearchResults = false,
     bool? searching,
+    bool? refreshing,
     Set<String>? selectedLabelIds,
     String? error,
   }) => NotesHomeState(
@@ -83,6 +85,7 @@ class NotesHomeState extends Equatable {
         ? null
         : searchResults ?? this.searchResults,
     searching: searching ?? this.searching,
+    refreshing: refreshing ?? this.refreshing,
     selectedLabelIds: selectedLabelIds ?? this.selectedLabelIds,
     error: error,
     revision: revision + 1,

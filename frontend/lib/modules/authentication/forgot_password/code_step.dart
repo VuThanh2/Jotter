@@ -44,7 +44,6 @@ class _CodeStepState extends State<CodeStep> {
         OtpInput(
           key: const Key('reset-code'),
           controller: _code,
-          enabled: !widget.busy,
           onCompleted: (_) => _submit(),
         ),
         Row(
