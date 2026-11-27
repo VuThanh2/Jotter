@@ -64,9 +64,11 @@ class _JotterAppState extends State<JotterApp> {
           themeMode: preferences.themeMode,
           routerConfig: _router,
           // Dialogs use the root navigator, so the session scope wraps it.
-          builder: (context, child) => _SessionGate(
-            onOpenNote: (id) => _router.push(AppRoutes.note(id)),
-            child: child!,
+          builder: (context, child) => _WideSnackBars(
+            child: _SessionGate(
+              onOpenNote: (id) => _router.push(AppRoutes.note(id)),
+              child: child!,
+            ),
           ),
         ),
       ),
@@ -121,4 +123,24 @@ class _SessionGateState extends State<_SessionGate> {
                 ),
               ),
       );
+}
+
+/// Phones keep edge-to-edge snackbars; wider screens get a compact toast
+/// centred above the content instead of a bar stretched across the window.
+class _WideSnackBars extends StatelessWidget {
+  const _WideSnackBars({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width < 600) return child;
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        snackBarTheme: theme.snackBarTheme.copyWith(width: 440),
+      ),
+      child: child,
+    );
+  }
 }

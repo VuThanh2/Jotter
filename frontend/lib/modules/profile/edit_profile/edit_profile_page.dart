@@ -111,64 +111,103 @@ class _EditProfileViewState extends State<_EditProfileView> {
     }
   }
 
+  /// Avatar with its photo actions; a column card on desktop, the top of
+  /// the form elsewhere.
+  Widget _photo(BuildContext context, EditProfileState state, MeState me) {
+    final hasPhoto = me.account.avatarUrl != null;
+    final cubit = context.read<EditProfileCubit>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: context.jotterColors.surface,
+              shape: BoxShape.circle,
+              boxShadow: context.jotterColors.softShadow,
+            ),
+            child: UserAvatar(
+              name: me.account.displayName,
+              image: me.avatar,
+              radius: 46,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              key: const Key('change-photo'),
+              onPressed: state.busy ? null : () => _changePhoto(hasPhoto),
+              icon: const Icon(Icons.photo_camera_outlined, size: 18),
+              label: Text(hasPhoto ? 'Change photo' : 'Add photo'),
+            ),
+            if (hasPhoto && !cubit.supportsCamera)
+              TextButton(
+                onPressed: state.busy ? null : cubit.removeAvatar,
+                child: const Text('Remove'),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'JPEG, PNG or WebP, up to 5 MB',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12.5, color: context.jotterColors.muted),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) => PageFrame(
     banner: const UnverifiedBanner(),
     title: 'Edit profile',
+    subtitle: 'How you appear to people you share notes with.',
+    icon: Icons.person_outline_rounded,
     fallbackRoute: AppRoutes.account,
     maxWidth: 480,
+    cardOnWide: true,
+    aside: BlocBuilder<EditProfileCubit, EditProfileState>(
+      builder: (context, state) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 28, 20, 22),
+        decoration: BoxDecoration(
+          color: context.jotterColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: context.jotterColors.line),
+        ),
+        child: _photo(context, state, context.watch<MeCubit>().state),
+      ),
+    ),
     child: BlocConsumer<EditProfileCubit, EditProfileState>(
       listener: _applyUpdate,
       builder: (context, state) {
         final me = context.watch<MeCubit>().state;
-        final hasPhoto = me.account.avatarUrl != null;
+        final wide = context.isExpanded;
         return Form(
           key: _form,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 16),
-              Center(
-                child: UserAvatar(
-                  name: me.account.displayName,
-                  image: me.avatar,
-                  radius: 44,
+              if (!wide) ...[
+                const SizedBox(height: 16),
+                _photo(context, state, me),
+                const SizedBox(height: 28),
+              ] else ...[
+                Text(
+                  'Your details',
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    key: const Key('change-photo'),
-                    onPressed: state.busy ? null : () => _changePhoto(hasPhoto),
-                    icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                    label: Text(hasPhoto ? 'Change photo' : 'Add photo'),
-                  ),
-                  if (hasPhoto &&
-                      !context.read<EditProfileCubit>().supportsCamera)
-                    TextButton(
-                      onPressed: state.busy
-                          ? null
-                          : context.read<EditProfileCubit>().removeAvatar,
-                      child: const Text('Remove'),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'JPEG, PNG or WebP, up to 5 MB',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: context.jotterColors.muted,
-                ),
-              ),
-              const SizedBox(height: 28),
+                const SizedBox(height: 18),
+              ],
               if (state.busy) const LinearProgressIndicator(minHeight: 2),
               if (state.error != null) MessageStrip(state.error!, error: true),
-              if (state.notice != null) MessageStrip(state.notice!),
+              if (state.notice != null)
+                MessageStrip(state.notice!, tone: JotterTone.success),
               const SizedBox(height: 16),
               TextFormField(
                 key: const Key('profile-name'),
@@ -185,10 +224,16 @@ class _EditProfileViewState extends State<_EditProfileView> {
               const SizedBox(height: 8),
               _EmailRow(me: me),
               const SizedBox(height: 24),
-              FilledButton(
-                key: const Key('save-profile'),
-                onPressed: state.busy ? null : _saveName,
-                child: const Text('Save name'),
+              Align(
+                alignment: wide ? Alignment.centerRight : Alignment.center,
+                child: SizedBox(
+                  width: wide ? null : double.infinity,
+                  child: FilledButton(
+                    key: const Key('save-profile'),
+                    onPressed: state.busy ? null : _saveName,
+                    child: const Text('Save name'),
+                  ),
+                ),
               ),
             ],
           ),
@@ -223,7 +268,7 @@ class _EmailRow extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           me.account.isActivated ? 'Confirmed' : 'Not confirmed',
-          style: TextStyle(fontSize: 12, color: context.jotterColors.muted),
+          style: TextStyle(fontSize: 12.5, color: context.jotterColors.muted),
         ),
       ],
     ),

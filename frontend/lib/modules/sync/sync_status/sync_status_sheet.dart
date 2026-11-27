@@ -16,8 +16,8 @@ import 'package:jotter/shared/widgets/state_views.dart';
 
 Future<void> showSyncStatusSheet(BuildContext context) {
   final workspace = context.read<OfflineNoteRepository>();
-  return showDialog<void>(
-    context: context,
+  return showAdaptivePanel<void>(
+    context,
     builder: (_) => BlocProvider(
       create: (_) => SyncSheetCubit(workspace),
       child: const _SyncStatusSheet(),
@@ -38,6 +38,7 @@ class _SyncStatusSheet extends StatelessWidget {
       final status = state.status;
       return ModalPanel(
         title: 'Sync',
+        icon: Icons.cloud_sync_outlined,
         busy: state.busy || status.isSyncing,
         footer: Align(
           alignment: Alignment.centerLeft,
@@ -50,14 +51,7 @@ class _SyncStatusSheet extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(status.label, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text(
-              status.realtimeConnected
-                  ? 'Live updates are on.'
-                  : 'Live updates will reconnect on their own.',
-              style: TextStyle(fontSize: 12, color: muted),
-            ),
+            _StatusHeader(status: status),
             const SizedBox(height: 14),
             Text(
               'Your own notes without a password can be edited offline. '
@@ -76,7 +70,17 @@ class _SyncStatusSheet extends StatelessWidget {
               ],
             const SizedBox(height: 20),
             if (state.changes.isEmpty)
-              const Text('Nothing waiting to sync.')
+              Row(
+                children: [
+                  Icon(
+                    Icons.check_circle_outline_rounded,
+                    size: 18,
+                    color: context.jotterColors.tone(JotterTone.success).icon,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Nothing waiting to sync.'),
+                ],
+              )
             else
               for (final change in state.changes)
                 _PendingChangeCard(change: change, busy: state.busy),
@@ -97,6 +101,7 @@ class _PendingChangeCard extends StatelessWidget {
     final cubit = context.read<SyncSheetCubit>();
     final confirmed = await showConfirmDialog(
       context,
+      icon: Icons.delete_sweep_outlined,
       title: 'Discard this change?',
       message:
           'Edits that have not synced will be lost. Review the draft first '
@@ -118,14 +123,40 @@ class _PendingChangeCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              change.title,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                Icon(
+                  change.isConflict
+                      ? Icons.call_split_rounded
+                      : change.error != null
+                      ? Icons.error_outline_rounded
+                      : Icons.schedule_rounded,
+                  size: 17,
+                  color: change.error != null || change.isConflict
+                      ? Theme.of(context).colorScheme.error
+                      : context.jotterColors.muted,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    change.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 4),
-            Text(
-              change.error ?? 'Waiting to sync',
-              style: TextStyle(fontSize: 13, color: context.jotterColors.muted),
+            Padding(
+              padding: const EdgeInsets.only(left: 25),
+              child: Text(
+                change.error ?? 'Waiting to sync',
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: context.jotterColors.muted,
+                ),
+              ),
             ),
             Wrap(
               spacing: 4,
@@ -160,8 +191,8 @@ class _PendingChangeCard extends StatelessWidget {
 
 Future<void> _showDraft(BuildContext context, JotterNote draft) {
   final text = '${draft.title}\n\n${draft.content}';
-  return showDialog<void>(
-    context: context,
+  return showJotterDialog<void>(
+    context,
     builder: (context) => AlertDialog(
       title: Text(draft.title.isEmpty ? 'Unsaved draft' : draft.title),
       content: ConstrainedBox(
@@ -188,4 +219,75 @@ Future<void> _showDraft(BuildContext context, JotterNote draft) {
       ],
     ),
   );
+}
+
+/// The overall state as a coloured badge with live-update status below.
+class _StatusHeader extends StatelessWidget {
+  const _StatusHeader({required this.status});
+
+  final WorkspaceSyncStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.jotterColors;
+    final (tone, icon) = status.conflictCount > 0 || status.error != null
+        ? (JotterTone.error, Icons.sync_problem_rounded)
+        : status.isOffline
+        ? (JotterTone.warning, Icons.cloud_off_outlined)
+        : status.pendingCount > 0 || status.isSyncing
+        ? (JotterTone.info, Icons.cloud_upload_outlined)
+        : (JotterTone.success, Icons.cloud_done_outlined);
+    final colors = palette.tone(tone);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 26, color: colors.icon),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  status.label,
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(color: colors.foreground),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: JotterMotion.medium,
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: status.realtimeConnected
+                            ? palette.tone(JotterTone.success).icon
+                            : palette.muted,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        status.realtimeConnected
+                            ? 'Live updates are on.'
+                            : 'Live updates will reconnect on their own.',
+                        style: TextStyle(fontSize: 12.5, color: palette.muted),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

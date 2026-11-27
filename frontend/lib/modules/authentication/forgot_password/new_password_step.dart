@@ -63,7 +63,7 @@ class _NewPasswordStepState extends State<NewPasswordStep> {
         const SizedBox(height: 8),
         Text(
           passwordHint,
-          style: TextStyle(fontSize: 12, color: context.jotterColors.muted),
+          style: TextStyle(fontSize: 12.5, color: context.jotterColors.muted),
         ),
         const SizedBox(height: 20),
         FilledButton(

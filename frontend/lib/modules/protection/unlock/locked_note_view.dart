@@ -37,57 +37,89 @@ class _LockedNoteViewState extends State<LockedNoteView> {
   }
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: Form(
-          key: _form,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Icon(
-                Icons.lock_outline_rounded,
-                size: 40,
-                color: context.jotterColors.muted,
+  Widget build(BuildContext context) {
+    final palette = context.jotterColors;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 380),
+          child: EntranceTransition(
+            scale: .97,
+            child: Form(
+              key: _form,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: palette.tint(JotterColors.lavender),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: palette.ink.withValues(alpha: .06),
+                        ),
+                        boxShadow: palette.softShadow,
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: JotterMotion.medium,
+                        child: Icon(
+                          widget.busy
+                              ? Icons.lock_open_rounded
+                              : Icons.lock_outline_rounded,
+                          key: ValueKey(widget.busy),
+                          size: 32,
+                          color: palette.ink.withValues(alpha: .7),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    widget.title.isEmpty ? 'Locked note' : widget.title,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Enter the note password to open it.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: palette.muted),
+                  ),
+                  const SizedBox(height: 26),
+                  PasswordField(
+                    key: const Key('unlock-password'),
+                    controller: _password,
+                    label: 'Note password',
+                    autofocus: true,
+                    enabled: !widget.busy,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submit(),
+                  ),
+                  const SizedBox(height: 16),
+                  if (widget.error != null) ...[
+                    MessageStrip(widget.error!, error: true),
+                    const SizedBox(height: 16),
+                  ],
+                  FilledButton.icon(
+                    key: const Key('unlock-submit'),
+                    onPressed: widget.busy ? null : _submit,
+                    icon: widget.busy
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.key_rounded, size: 18),
+                    label: Text(widget.busy ? 'Unlocking…' : 'Unlock'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                widget.title.isEmpty ? 'Locked note' : widget.title,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Enter the note password to open it.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: context.jotterColors.muted),
-              ),
-              const SizedBox(height: 24),
-              PasswordField(
-                key: const Key('unlock-password'),
-                controller: _password,
-                label: 'Note password',
-                autofocus: true,
-                enabled: !widget.busy,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _submit(),
-              ),
-              const SizedBox(height: 16),
-              if (widget.error != null) ...[
-                MessageStrip(widget.error!, error: true),
-                const SizedBox(height: 16),
-              ],
-              FilledButton(
-                key: const Key('unlock-submit'),
-                onPressed: widget.busy ? null : _submit,
-                child: Text(widget.busy ? 'Unlocking…' : 'Unlock'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

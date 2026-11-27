@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:jotter/app/theme/app_theme.dart';
 import 'package:jotter/data/api_note_repository.dart';
 import 'package:jotter/models/jotter_note.dart';
 import 'package:jotter/modules/protection/manage_protection/change_note_password_dialog.dart';
@@ -21,8 +22,8 @@ Future<bool> showProtectionPanel(BuildContext context, JotterNote note) async {
     if (!note.isProtected) {
       return await showEnableProtectionDialog(context, cubit);
     }
-    final changed = await showDialog<bool>(
-      context: context,
+    final changed = await showAdaptivePanel<bool>(
+      context,
       builder: (_) => BlocProvider.value(
         value: cubit,
         child: _ProtectionPanel(title: note.title),
@@ -48,6 +49,7 @@ class _ProtectionPanel extends StatelessWidget {
       void finish() => Navigator.pop(context, true);
       return ModalPanel(
         title: 'Password protection',
+        icon: Icons.lock_outline_rounded,
         subtitle: title.isEmpty ? 'Untitled note' : title,
         busy: state.busy,
         footer: Wrap(
@@ -92,9 +94,11 @@ class _ProtectionPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            const MessageStrip(
               'This note has a password. It stays open on this device '
               'until you lock it again.',
+              tone: JotterTone.success,
+              icon: Icons.lock_open_rounded,
             ),
             // Password dialogs above this panel show their own errors.
             if (state.error != null &&

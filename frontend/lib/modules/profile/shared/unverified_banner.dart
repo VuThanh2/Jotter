@@ -17,48 +17,85 @@ class UnverifiedBanner extends StatelessWidget {
   Widget build(BuildContext context) => BlocBuilder<MeCubit, MeState>(
     buildWhen: (a, b) => a.account.isActivated != b.account.isActivated,
     builder: (context, state) {
-      if (state.account.isActivated) return const SizedBox.shrink();
+      final verified = state.account.isActivated;
       void open() => context.push(AppRoutes.activation);
+      final colors = context.jotterColors.tone(JotterTone.warning);
       if (compact) {
+        if (verified) return const SizedBox.shrink();
         return Tooltip(
           message: 'Confirm your email address',
-          child: ActionChip(
-            avatar: const Icon(Icons.mark_email_unread_outlined, size: 16),
-            label: const Text('Unverified'),
-            onPressed: open,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: ActionChip(
+              avatar: Icon(
+                Icons.mark_email_unread_outlined,
+                size: 16,
+                color: colors.icon,
+              ),
+              label: Text(
+                'Unverified',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: colors.foreground,
+                ),
+              ),
+              backgroundColor: colors.background,
+              side: BorderSide(color: colors.border),
+              visualDensity: VisualDensity.compact,
+              onPressed: open,
+            ),
           ),
         );
       }
-      return Material(
-        color: context.jotterColors.tint(JotterColors.butter),
-        child: Semantics(
-          container: true,
-          label: 'Your email address is not confirmed yet',
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.mark_email_unread_outlined,
-                  size: 18,
-                  color: JotterColors.accent,
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Text(
-                    'Your email is not confirmed yet.',
-                    style: TextStyle(fontSize: 13),
+      // Slides away once the address is confirmed instead of vanishing.
+      return AnimatedSize(
+        duration: JotterMotion.medium,
+        curve: JotterMotion.curve,
+        alignment: Alignment.topCenter,
+        child: verified
+            ? const SizedBox(width: double.infinity)
+            : Material(
+                color: colors.background,
+                child: Semantics(
+                  container: true,
+                  label: 'Your email address is not confirmed yet',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: colors.border)),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.mark_email_unread_outlined,
+                          size: 18,
+                          color: colors.icon,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Your email is not confirmed yet.',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w500,
+                              color: colors.foreground,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          key: const Key('verify-email'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: colors.foreground,
+                          ),
+                          onPressed: open,
+                          child: const Text('Confirm now'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                TextButton(
-                  key: const Key('verify-email'),
-                  onPressed: open,
-                  child: const Text('Confirm now'),
-                ),
-              ],
-            ),
-          ),
-        ),
+              ),
       );
     },
   );
