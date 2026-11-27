@@ -16,8 +16,8 @@ Future<void> showSummaryPanel(
   required String noteTitle,
 }) {
   final api = SummaryApi(context.read<ApiNoteRepository>());
-  return showDialog<void>(
-    context: context,
+  return showAdaptivePanel<void>(
+    context,
     builder: (_) => BlocProvider(
       create: (_) => SummaryCubit(api, noteId: noteId)..load(),
       child: _SummaryPanel(noteTitle: noteTitle),
@@ -37,6 +37,7 @@ class _SummaryPanel extends StatelessWidget {
       final muted = context.jotterColors.muted;
       return ModalPanel(
         title: 'Summary',
+        icon: Icons.auto_awesome_outlined,
         subtitle: noteTitle.isEmpty ? 'Untitled note' : noteTitle,
         busy: state.generating,
         footer: Wrap(
@@ -44,17 +45,27 @@ class _SummaryPanel extends StatelessWidget {
           runSpacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            FilledButton(
+            FilledButton.icon(
               key: const Key('summary-generate'),
               onPressed: state.status == SummaryStatus.ready
                   ? cubit.generate
                   : null,
-              child: Text(
+              icon: Icon(
+                state.savedAt == null
+                    ? Icons.auto_awesome_outlined
+                    : Icons.refresh_rounded,
+                size: 18,
+              ),
+              label: Text(
                 state.savedAt == null ? 'Summarize' : 'Summarize again',
               ),
             ),
             if (state.generating)
-              OutlinedButton(onPressed: cubit.stop, child: const Text('Stop')),
+              OutlinedButton.icon(
+                onPressed: cubit.stop,
+                icon: const Icon(Icons.stop_rounded, size: 18),
+                label: const Text('Stop'),
+              ),
           ],
         ),
         child: Column(
@@ -67,23 +78,54 @@ class _SummaryPanel extends StatelessWidget {
             if (state.status == SummaryStatus.loading)
               const LoadingView(label: 'Loading summary')
             else if (state.text.isEmpty)
-              Text(
-                state.generating
-                    ? 'Reading the note…'
-                    : 'No summary yet. It will cover the main points of '
-                          'this note.',
-                style: TextStyle(color: muted),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: context.jotterColors.sidebar,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      state.generating
+                          ? Icons.hourglass_top_rounded
+                          : Icons.short_text_rounded,
+                      size: 20,
+                      color: muted,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        state.generating
+                            ? 'Reading the note…'
+                            : 'No summary yet. It will cover the main points '
+                                  'of this note.',
+                        style: TextStyle(color: muted),
+                      ),
+                    ),
+                  ],
+                ),
               )
             else
-              Semantics(
-                liveRegion: true,
-                child: SelectableText(
-                  readableAiText(state.text),
-                  style: Theme.of(context).textTheme.bodyLarge,
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                decoration: BoxDecoration(
+                  color: context.jotterColors.accentSoft.withValues(alpha: .45),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Semantics(
+                  liveRegion: true,
+                  child: SelectableText(
+                    readableAiText(state.text),
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
                 ),
               ),
             const SizedBox(height: 16),
-            Text(_caption(state), style: TextStyle(fontSize: 12, color: muted)),
+            Text(
+              _caption(state),
+              style: TextStyle(fontSize: 12.5, color: muted),
+            ),
           ],
         ),
       );

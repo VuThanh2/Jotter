@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:jotter/shared/widgets/modal_panel.dart';
 
 Future<String?> showLabelNameDialog(
   BuildContext context, {
   required String title,
   required String action,
   String initialName = '',
-}) => showDialog<String>(
-  context: context,
+}) => showJotterDialog<String>(
+  context,
   builder: (_) =>
       _LabelNameDialog(title: title, action: action, initialName: initialName),
 );
@@ -54,7 +55,10 @@ class _LabelNameDialogState extends State<_LabelNameDialog> {
           controller: _name,
           autofocus: true,
           maxLength: 50,
-          decoration: const InputDecoration(labelText: 'Label name'),
+          decoration: const InputDecoration(
+            labelText: 'Label name',
+            prefixIcon: Icon(Icons.label_outline_rounded, size: 19),
+          ),
           onFieldSubmitted: (_) => _submit(),
           validator: (value) => value == null || value.trim().isEmpty
               ? 'Enter a label name.'

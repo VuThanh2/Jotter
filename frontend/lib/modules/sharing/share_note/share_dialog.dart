@@ -15,8 +15,8 @@ import 'package:jotter/shared/widgets/state_views.dart';
 
 Future<void> showShareDialog(BuildContext context, JotterNote note) {
   final api = ShareNoteApi(context.read<ApiNoteRepository>());
-  return showDialog<void>(
-    context: context,
+  return showAdaptivePanel<void>(
+    context,
     builder: (_) => BlocProvider(
       create: (_) => ShareNoteCubit(api, noteId: note.id)..load(),
       child: _ShareDialog(noteTitle: note.title),
@@ -68,6 +68,7 @@ class _ShareDialogState extends State<_ShareDialog> {
       title: 'Remove $name?',
       message: '$name will no longer be able to open this note.',
       confirmLabel: 'Remove access',
+      icon: Icons.person_remove_outlined,
     );
     if (confirmed) await _cubit.revoke(share);
   }
@@ -81,6 +82,7 @@ class _ShareDialogState extends State<_ShareDialog> {
       final invitees = _typedEmails.where(_emailPattern.hasMatch);
       return ModalPanel(
         title: 'Share',
+        icon: Icons.person_add_alt_outlined,
         subtitle: widget.noteTitle.isEmpty ? 'Untitled note' : widget.noteTitle,
         busy: state.busy,
         child: Column(
@@ -106,6 +108,7 @@ class _ShareDialogState extends State<_ShareDialog> {
               decoration: const InputDecoration(
                 labelText: 'Email addresses',
                 hintText: 'name@example.com',
+                prefixIcon: Icon(Icons.alternate_email_rounded, size: 19),
               ),
             ),
             const SizedBox(height: 8),
@@ -121,12 +124,13 @@ class _ShareDialogState extends State<_ShareDialog> {
             const SizedBox(height: 8),
             Align(
               alignment: Alignment.centerLeft,
-              child: FilledButton(
+              child: FilledButton.icon(
                 key: const Key('share-send'),
                 onPressed: state.busy || _emails.text.trim().isEmpty
                     ? null
                     : _invite,
-                child: const Text('Send invitation'),
+                icon: const Icon(Icons.send_rounded, size: 17),
+                label: const Text('Send invitation'),
               ),
             ),
             if (state.error != null) ...[
@@ -135,23 +139,62 @@ class _ShareDialogState extends State<_ShareDialog> {
             ],
             if (state.notice != null) ...[
               const SizedBox(height: 14),
-              MessageStrip(state.notice!),
+              MessageStrip(state.notice!, tone: JotterTone.success),
             ],
             const SizedBox(height: 24),
-            Text(
-              'People with access',
-              style: Theme.of(context).textTheme.titleSmall,
+            Row(
+              children: [
+                Text(
+                  'People with access',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                if (state.shares.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.jotterColors.selected,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${state.shares.length}',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             if (state.loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: LinearProgressIndicator(),
               )
             else if (state.shares.isEmpty)
-              Text(
-                'Only you can open this note.',
-                style: TextStyle(color: muted),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: context.jotterColors.sidebar,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_person_outlined, size: 18, color: muted),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Only you can open this note.',
+                        style: TextStyle(color: muted),
+                      ),
+                    ),
+                  ],
+                ),
               )
             else
               for (final share in state.shares)

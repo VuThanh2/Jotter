@@ -31,8 +31,11 @@ import 'package:jotter/modules/sync/sync_status/sync_status_cubit.dart';
 import 'package:jotter/modules/sync/sync_status/sync_status_sheet.dart';
 import 'package:jotter/shared/lib/file_service.dart';
 import 'package:jotter/shared/widgets/note_card.dart';
+import 'package:jotter/shared/widgets/page_frame.dart';
 import 'package:jotter/shared/widgets/page_shortcuts.dart';
+import 'package:jotter/shared/widgets/adaptive_scaffold.dart';
 import 'package:jotter/shared/widgets/state_views.dart';
+import 'package:jotter/shared/widgets/user_avatar.dart';
 
 /// One editor for creating and editing. Saving happens automatically.
 class NoteEditorPage extends StatelessWidget {
@@ -187,7 +190,14 @@ class _NoteEditorViewState extends State<_NoteEditorView> {
           child: PopScope(
             onPopInvokedWithResult: (_, _) => _flush(),
             child: Scaffold(
+              // A desk-coloured page so the note's paper sheet stands out.
+              backgroundColor: context.isExpanded
+                  ? context.jotterColors.sidebar
+                  : null,
               appBar: AppBar(
+                backgroundColor: context.isExpanded
+                    ? context.jotterColors.sidebar
+                    : null,
                 leading: BackButton(onPressed: _close),
                 titleSpacing: 0,
                 title: SaveStatusIndicator(
@@ -233,6 +243,7 @@ class _NoteEditorViewState extends State<_NoteEditorView> {
       state: state,
       title: _title,
       content: _content,
+      onLabels: state.note?.isOwned ?? false ? () => _pickLabels(state) : null,
     ),
   };
 }
@@ -242,11 +253,13 @@ class _Editor extends StatelessWidget {
     required this.state,
     required this.title,
     required this.content,
+    this.onLabels,
   });
 
   final NoteEditorState state;
   final TextEditingController title;
   final TextEditingController content;
+  final VoidCallback? onLabels;
 
   @override
   Widget build(BuildContext context) {
@@ -264,57 +277,126 @@ class _Editor extends StatelessWidget {
       counterText: '',
       contentPadding: EdgeInsets.zero,
     );
+    final compact = context.isCompact;
+    final width = MediaQuery.sizeOf(context).width;
+    // Desktop: the note sits on a sheet of paper; very wide windows add a
+    // details column instead of leaving empty margins.
+    final sheet = width >= 840;
+    final panel = width >= 1180;
+    final page = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ..._notices(context),
+        TextField(
+          key: const Key('note-title'),
+          controller: title,
+          readOnly: readOnly,
+          autofocus: state.isNew,
+          maxLength: 200,
+          maxLines: null,
+          textCapitalization: TextCapitalization.sentences,
+          textInputAction: TextInputAction.next,
+          onChanged: (value) => bloc.add(EditorTitleChanged(value)),
+          style: TextStyle(
+            fontSize: compact ? 26 : 32,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -.6,
+            height: 1.25,
+          ),
+          decoration: bare('Title').copyWith(
+            hintStyle: TextStyle(
+              fontSize: compact ? 26 : 32,
+              fontWeight: FontWeight.w700,
+              color: palette.muted.withValues(alpha: .55),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _MetaRow(
+          state: state,
+          labels: labels,
+          content: content,
+          onLabels: readOnly ? null : onLabels,
+          showWords: !panel,
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Divider(height: 1, color: palette.line),
+        ),
+        TextField(
+          key: const Key('note-content'),
+          controller: content,
+          readOnly: readOnly,
+          minLines: 8,
+          maxLines: null,
+          maxLength: 50000,
+          keyboardType: TextInputType.multiline,
+          textCapitalization: TextCapitalization.sentences,
+          onChanged: (value) => bloc.add(EditorContentChanged(value)),
+          style: TextStyle(fontSize: fontSize, height: 1.7),
+          decoration: bare(readOnly ? '' : 'Start writing…').copyWith(
+            hintStyle: TextStyle(
+              fontSize: fontSize,
+              color: palette.muted.withValues(alpha: .7),
+            ),
+          ),
+        ),
+        if (state.existsOnServer) ...[
+          const SizedBox(height: 36),
+          AttachmentSection(canEdit: state.canEdit),
+        ],
+      ],
+    );
+    if (!sheet) {
+      return SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          compact ? 20 : 32,
+          compact ? 12 : 28,
+          compact ? 20 : 32,
+          64,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: page,
+          ),
+        ),
+      );
+    }
+    final paper = Container(
+      constraints: const BoxConstraints(minHeight: 520),
+      padding: const EdgeInsets.fromLTRB(52, 44, 52, 44),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: palette.line),
+        boxShadow: palette.softShadow,
+      ),
+      child: page,
+    );
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 48),
+      padding: const EdgeInsets.fromLTRB(32, 12, 32, 64),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ..._notices(context),
-              TextField(
-                key: const Key('note-title'),
-                controller: title,
-                readOnly: readOnly,
-                autofocus: state.isNew,
-                maxLength: 200,
-                maxLines: null,
-                textCapitalization: TextCapitalization.sentences,
-                textInputAction: TextInputAction.next,
-                onChanged: (value) => bloc.add(EditorTitleChanged(value)),
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  height: 1.25,
-                ),
-                decoration: bare('Title'),
-              ),
-              const SizedBox(height: 10),
-              _MetaRow(state: state, labels: labels),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                child: Divider(height: 1, color: palette.line),
-              ),
-              TextField(
-                key: const Key('note-content'),
-                controller: content,
-                readOnly: readOnly,
-                minLines: 8,
-                maxLines: null,
-                maxLength: 50000,
-                keyboardType: TextInputType.multiline,
-                textCapitalization: TextCapitalization.sentences,
-                onChanged: (value) => bloc.add(EditorContentChanged(value)),
-                style: TextStyle(fontSize: fontSize, height: 1.7),
-                decoration: bare(readOnly ? '' : 'Start writing…'),
-              ),
-              if (state.existsOnServer) ...[
-                const SizedBox(height: 32),
-                AttachmentSection(canEdit: state.canEdit),
-              ],
-            ],
-          ),
+          constraints: BoxConstraints(maxWidth: panel ? 1140 : 860),
+          child: panel
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: paper),
+                    const SizedBox(width: 28),
+                    SizedBox(
+                      width: 284,
+                      child: _DetailsPanel(
+                        state: state,
+                        labels: labels,
+                        content: content,
+                        onLabels: readOnly ? null : onLabels,
+                      ),
+                    ),
+                  ],
+                )
+              : paper,
         ),
       ),
     );
@@ -327,41 +409,28 @@ class _Editor extends StatelessWidget {
     Widget gap(Widget child) =>
         Padding(padding: const EdgeInsets.only(bottom: 14), child: child);
     return [
-      if (others.isNotEmpty)
+      if (others.isNotEmpty) gap(_Presence(names: others)),
+      if (state.readOnlyReason == ReadOnlyReason.viewer)
         gap(
-          Row(
-            children: [
-              Icon(
-                Icons.people_outline_rounded,
-                size: 16,
-                color: context.jotterColors.muted,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Also here: ${others.join(', ')}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: context.jotterColors.muted,
-                  ),
-                ),
-              ),
-            ],
+          const MessageStrip(
+            'You can read this note but not edit it.',
+            icon: Icons.visibility_outlined,
           ),
         ),
-      if (state.readOnlyReason == ReadOnlyReason.viewer)
-        gap(const MessageStrip('You can read this note but not edit it.')),
       if (state.readOnlyReason == ReadOnlyReason.permissionLost)
         gap(
           const MessageStrip(
             'The owner changed your access to view only. '
             'Copy any text you still need.',
+            tone: JotterTone.warning,
           ),
         ),
       if (state.newerVersionAvailable)
         gap(
           MessageStrip(
             'Someone saved a newer version while you were typing.',
+            tone: JotterTone.warning,
+            icon: Icons.update_rounded,
             action: Wrap(
               children: [
                 TextButton(
@@ -411,6 +480,7 @@ class _SyncConflictNotice extends StatelessWidget {
               'This note changed on another device while you were offline. '
               'Your version has not been lost.',
               error: true,
+              icon: Icons.call_split_rounded,
               action: TextButton(
                 onPressed: () => _review(context),
                 child: const Text('Review'),
@@ -422,31 +492,334 @@ class _SyncConflictNotice extends StatelessWidget {
 }
 
 class _MetaRow extends StatelessWidget {
-  const _MetaRow({required this.state, required this.labels});
+  const _MetaRow({
+    required this.state,
+    required this.labels,
+    required this.content,
+    this.onLabels,
+    this.showWords = true,
+  });
 
   final NoteEditorState state;
   final List<JotterLabel> labels;
+  final TextEditingController content;
+  final VoidCallback? onLabels;
+
+  /// Off when the details column already shows the counts.
+  final bool showWords;
 
   @override
   Widget build(BuildContext context) {
     final note = state.note!;
-    final muted = context.jotterColors.muted;
+    final palette = context.jotterColors;
+    final muted = palette.muted;
+    final tags = labels.where((l) => note.labelIds.contains(l.id)).toList();
+    Widget tag(String name) => Material(
+      color: palette.ink.withValues(alpha: palette.dark ? .1 : .055),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onLabels,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.label_outline_rounded, size: 13, color: muted),
+              const SizedBox(width: 5),
+              Text(
+                name,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w500,
+                  color: palette.ink,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
     return Wrap(
       spacing: 8,
-      runSpacing: 6,
+      runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Text(
-          state.isNew ? 'New note' : 'Edited ${relativeDate(note.updatedAt)}',
-          style: TextStyle(fontSize: 12, color: muted),
+        // Counts words as they are typed, without rebuilding the editor.
+        ValueListenableBuilder(
+          valueListenable: content,
+          builder: (context, value, _) {
+            final words = RegExp(r'\S+').allMatches(value.text).length;
+            return Text(
+              [
+                state.isNew
+                    ? 'New note'
+                    : 'Edited ${relativeDate(note.updatedAt)}',
+                if (words > 0 && showWords)
+                  '$words ${words == 1 ? 'word' : 'words'}',
+              ].join('  ·  '),
+              style: TextStyle(fontSize: 13, color: muted),
+            );
+          },
         ),
-        for (final label in labels.where((l) => note.labelIds.contains(l.id)))
-          Chip(
-            avatar: Icon(Icons.label_outline_rounded, size: 14, color: muted),
-            label: Text(label.name),
-            visualDensity: VisualDensity.compact,
-            labelStyle: const TextStyle(fontSize: 11),
+        for (final label in tags) tag(label.name),
+        if (tags.isEmpty && onLabels != null)
+          TextButton.icon(
+            onPressed: onLabels,
+            style: TextButton.styleFrom(
+              foregroundColor: muted,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              textStyle: const TextStyle(
+                fontFamily: kJotterFont,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            icon: const Icon(Icons.add_rounded, size: 15),
+            label: const Text('Add label'),
           ),
+      ],
+    );
+  }
+}
+
+/// Who else has this note open, as a small stack of initials.
+class _Presence extends StatelessWidget {
+  const _Presence({required this.names});
+
+  final List<String> names;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.jotterColors;
+    final shown = names.take(3).toList();
+    return Semantics(
+      label: 'Also here: ${names.join(', ')}',
+      excludeSemantics: true,
+      child: EntranceTransition(
+        duration: JotterMotion.medium,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 25.0 + (shown.length - 1) * 16,
+              height: 25,
+              child: Stack(
+                children: [
+                  for (final (index, name) in shown.indexed)
+                    Positioned(
+                      left: index * 16,
+                      child: Container(
+                        padding: const EdgeInsets.all(1.5),
+                        decoration: BoxDecoration(
+                          color: palette.paper,
+                          shape: BoxShape.circle,
+                        ),
+                        child: UserAvatar(name: name, radius: 11),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Also here: ${names.join(', ')}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 13, color: palette.muted),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The right-hand column on wide screens: facts about the note, its labels
+/// and its access, kept beside the text instead of empty margins.
+class _DetailsPanel extends StatelessWidget {
+  const _DetailsPanel({
+    required this.state,
+    required this.labels,
+    required this.content,
+    this.onLabels,
+  });
+
+  final NoteEditorState state;
+  final List<JotterLabel> labels;
+  final TextEditingController content;
+  final VoidCallback? onLabels;
+
+  @override
+  Widget build(BuildContext context) {
+    final note = state.note!;
+    final palette = context.jotterColors;
+    final muted = palette.muted;
+    final tags = labels.where((l) => note.labelIds.contains(l.id)).toList();
+    Widget heading(String text) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11.5,
+          letterSpacing: 1.1,
+          fontWeight: FontWeight.w700,
+          color: muted,
+        ),
+      ),
+    );
+    Widget fact(IconData icon, String label, String value) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: muted),
+          const SizedBox(width: 10),
+          Text(label, style: TextStyle(fontSize: 13.5, color: muted)),
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+    Widget card(List<Widget> children) => Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: palette.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+    final access = note.isOwned
+        ? ('Owner', Icons.verified_user_outlined)
+        : state.canEdit
+        ? ('Can edit', Icons.edit_outlined)
+        : ('View only', Icons.visibility_outlined);
+    return Column(
+      children: [
+        card([
+          heading('Details'),
+          fact(
+            Icons.add_circle_outline_rounded,
+            'Created',
+            state.isNew ? 'Just now' : relativeDate(note.createdAt),
+          ),
+          fact(
+            Icons.history_rounded,
+            'Edited',
+            state.isNew ? 'Just now' : relativeDate(note.updatedAt),
+          ),
+          ValueListenableBuilder(
+            valueListenable: content,
+            builder: (context, value, _) => Column(
+              children: [
+                fact(
+                  Icons.notes_rounded,
+                  'Words',
+                  '${RegExp(r'\S+').allMatches(value.text).length}',
+                ),
+                fact(
+                  Icons.text_fields_rounded,
+                  'Characters',
+                  '${value.text.characters.length}',
+                ),
+              ],
+            ),
+          ),
+        ]),
+        card([
+          Row(
+            children: [
+              Expanded(child: heading('Labels')),
+              if (onLabels != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: onLabels,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        'Edit',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: palette.accent,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (tags.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                'No labels yet.',
+                style: TextStyle(fontSize: 13.5, color: muted),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final label in tags)
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
+                      decoration: BoxDecoration(
+                        color: palette.ink.withValues(
+                          alpha: palette.dark ? .1 : .055,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.label_outline_rounded,
+                            size: 13,
+                            color: muted,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            label.name,
+                            style: const TextStyle(fontSize: 12.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ]),
+        card([
+          heading('Access'),
+          fact(access.$2, 'You', access.$1),
+          if (note.isPinned) fact(Icons.push_pin_outlined, 'Pinned', 'Yes'),
+          fact(
+            Icons.people_outline_rounded,
+            'Shared',
+            note.isShared || !note.isOwned ? 'Yes' : 'No',
+          ),
+          fact(
+            Icons.lock_outline_rounded,
+            'Password',
+            note.isProtected ? 'On' : 'Off',
+          ),
+        ]),
       ],
     );
   }

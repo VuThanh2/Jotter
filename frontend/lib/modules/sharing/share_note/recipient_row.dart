@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:jotter/app/theme/app_theme.dart';
 import 'package:jotter/shared/models/note_permission.dart';
+import 'package:jotter/shared/widgets/user_avatar.dart';
 
 /// One person in the share dialog: who they are, their access and, for
 /// existing shares, a way to remove it.
@@ -27,6 +28,8 @@ class RecipientRow extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 6),
     child: Row(
       children: [
+        UserAvatar(name: name.isEmpty ? email : name, radius: 16),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,7 +46,7 @@ class RecipientRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 12.5,
                     color: context.jotterColors.muted,
                   ),
                 ),
@@ -67,6 +70,13 @@ class RecipientRow extends StatelessWidget {
                   value: permission,
                   isDense: true,
                   isExpanded: true,
+                  style: TextStyle(
+                    fontFamily: kJotterFont,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: context.jotterColors.ink,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
                   items: [
                     for (final value in NotePermission.values)
                       DropdownMenuItem(value: value, child: Text(value.label)),

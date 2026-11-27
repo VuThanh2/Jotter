@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:jotter/app/theme/app_theme.dart';
 import 'package:jotter/modules/protection/manage_protection/manage_protection_cubit.dart';
 import 'package:jotter/modules/protection/manage_protection/manage_protection_state.dart';
+import 'package:jotter/shared/widgets/modal_panel.dart';
 import 'package:jotter/shared/widgets/password_field.dart';
 import 'package:jotter/shared/widgets/state_views.dart';
 
@@ -21,8 +23,8 @@ Future<bool> showNotePasswordDialog(
   bool destructive = false,
 }) async {
   cubit.clearError();
-  final done = await showDialog<bool>(
-    context: context,
+  final done = await showJotterDialog<bool>(
+    context,
     builder: (_) => BlocProvider.value(
       value: cubit,
       child: _NotePasswordDialog(
@@ -117,6 +119,14 @@ class _NotePasswordDialogState extends State<_NotePasswordDialog> {
           final scheme = Theme.of(context).colorScheme;
           final last = widget.inputs.last;
           return AlertDialog(
+            icon: Icon(
+              widget.destructive
+                  ? Icons.lock_open_rounded
+                  : Icons.password_rounded,
+              color: widget.destructive
+                  ? scheme.error
+                  : context.jotterColors.accent,
+            ),
             title: Text(widget.title),
             content: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 380),
