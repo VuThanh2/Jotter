@@ -61,9 +61,8 @@ class AttachmentViewerCubit extends Cubit<AttachmentViewerState> {
     try {
       final file =
           state.file ??
-          (await _api.list(
-            noteId,
-          )).firstWhere((item) => item.id == attachmentId);
+          (await _api.list(noteId))
+              .firstWhere((item) => item.id == attachmentId);
       emit(state.copyWith(file: file));
       if (file.isVideo) {
         final video = await openVideo(
@@ -86,7 +85,9 @@ class AttachmentViewerCubit extends Cubit<AttachmentViewerState> {
         emit(state.copyWith(loading: false));
       }
     } on StateError {
-      emit(state.copyWith(loading: false, error: 'This file no longer exists.'));
+      emit(
+        state.copyWith(loading: false, error: 'This file no longer exists.'),
+      );
     } catch (error) {
       if (isClosed) return;
       emit(

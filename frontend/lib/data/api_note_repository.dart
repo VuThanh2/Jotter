@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:jotter/shared/lib/api_error.dart';
 
 import '../models/jotter_account.dart';
 import '../models/jotter_label.dart';
@@ -609,7 +610,7 @@ class ApiNoteRepository extends NoteRepository {
       (423, _) => 'This note is locked. Enter its password to open it.',
       (429, _) => 'Too many attempts. Please wait a moment and try again.',
       _ =>
-        data['title'] as String? ??
+        apiErrorMessage(code) ??
             'Jotter could not complete this request. Please try again.',
     };
     throw RepositoryException(

@@ -207,10 +207,24 @@ public static class InfrastructureExtensions
     {
         services.AddSingleton<EmailQueue>();
         services.AddSingleton<IEmailSender, QueuedEmailSender>();
+        services
+            .AddHttpClient(MailjetEmailTransport.HttpClientName)
+            .ConfigureHttpClient(client => client.Timeout = TimeSpan.FromSeconds(30));
+
+        // Mailjet (HTTPS) khi có khoá — dùng trên Railway vì cổng SMTP bị chặn; SMTP khi có Host; còn lại chỉ ghi log.
         services.AddSingleton<IEmailTransport>(provider =>
-            provider.GetRequiredService<IOptions<EmailOptions>>().Value.IsSmtpConfigured
+        {
+            var options = provider.GetRequiredService<IOptions<EmailOptions>>().Value;
+
+            if (options.IsMailjetConfigured)
+            {
+                return ActivatorUtilities.CreateInstance<MailjetEmailTransport>(provider);
+            }
+
+            return options.IsSmtpConfigured
                 ? ActivatorUtilities.CreateInstance<MailKitEmailTransport>(provider)
-                : ActivatorUtilities.CreateInstance<LoggingEmailTransport>(provider));
+                : ActivatorUtilities.CreateInstance<LoggingEmailTransport>(provider);
+        });
 
         return services;
     }

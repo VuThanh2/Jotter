@@ -10,6 +10,7 @@ Future<void> confirmLogout(BuildContext context) async {
   final confirmed = await showConfirmDialog(
     context,
     title: 'Sign out?',
+    icon: Icons.logout_rounded,
     message: pending == 0
         ? 'Your notes stay safe in your account. This device forgets them '
               'until you sign in again.'

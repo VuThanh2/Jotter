@@ -15,6 +15,7 @@ import 'package:jotter/shared/widgets/note_collection.dart';
 import 'package:jotter/shared/widgets/note_search_bar.dart';
 import 'package:jotter/shared/widgets/permission_badge.dart';
 import 'package:jotter/shared/widgets/state_views.dart';
+import 'package:jotter/shared/widgets/user_avatar.dart';
 
 class SharedWithMePage extends StatefulWidget {
   const SharedWithMePage({super.key});
@@ -57,9 +58,22 @@ class _SharedWithMePageState extends State<SharedWithMePage> {
                       children: [
                         Text(
                           'Shared with me',
-                          style: Theme.of(context).textTheme.headlineMedium,
+                          style: context.isCompact
+                              ? Theme.of(context).textTheme.headlineSmall
+                              : Theme.of(context).textTheme.headlineMedium,
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 2),
+                        Text(
+                          state.notes.isEmpty
+                              ? 'Notes other people share with you'
+                              : '${state.notes.length} shared '
+                                    '${state.notes.length == 1 ? 'note' : 'notes'}',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: context.jotterColors.muted,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
                         NoteSearchBar(
                           controller: _search,
                           onChanged: cubit.search,
@@ -69,18 +83,62 @@ class _SharedWithMePageState extends State<SharedWithMePage> {
                     ),
                   ),
                 ),
-                if (state.loading && notes.isEmpty)
-                  const SliverFillRemaining(child: LoadingView())
+                if (state.loading && state.notes.isNotEmpty)
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 8),
+                    sliver: const SliverToBoxAdapter(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.all(Radius.circular(2)),
+                        child: LinearProgressIndicator(
+                          minHeight: 3,
+                          semanticsLabel: 'Refreshing shared notes',
+                        ),
+                      ),
+                    ),
+                  ),
+                if (state.error != null && state.notes.isNotEmpty)
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, 16),
+                    sliver: SliverToBoxAdapter(
+                      child: MessageStrip(
+                        state.error!,
+                        error: true,
+                        action: TextButton(
+                          onPressed: cubit.refresh,
+                          child: const Text('Retry'),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (state.loading && state.notes.isEmpty)
+                  SliverPadding(
+                    padding: EdgeInsets.symmetric(horizontal: horizontal),
+                    sliver: NoteSkeletonSliver(
+                      listMode: preferences.listMode,
+                      label: 'Loading shared notes',
+                    ),
+                  )
+                else if (state.error != null && state.notes.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: ErrorView(
+                      message: state.error!,
+                      onRetry: cubit.refresh,
+                    ),
+                  )
                 else if (notes.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: EmptyView(
-                      icon: Icons.people_outline_rounded,
+                      icon: state.query.isEmpty
+                          ? Icons.people_outline_rounded
+                          : Icons.search_off_rounded,
                       title: state.query.isEmpty
                           ? 'Nothing shared with you yet'
                           : 'No shared notes match',
                       message: state.query.isEmpty
-                          ? 'Notes other people share with you appear here.'
+                          ? 'When someone shares a note with you, it shows up '
+                                'here with who sent it.'
                           : 'Try another word.',
                     ),
                   )
@@ -127,9 +185,23 @@ class _SharedFooter extends StatelessWidget {
     children: [
       PermissionBadge(canEdit: info?.canEdit ?? canEdit),
       if (info != null)
-        Text(
-          'From ${info!.sharedBy} · ${relativeDate(info!.sharedAt)}',
-          style: TextStyle(fontSize: 11, color: context.jotterColors.muted),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            UserAvatar(name: info!.sharedBy, radius: 8),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                'From ${info!.sharedBy} · ${relativeDate(info!.sharedAt)}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.jotterColors.muted,
+                ),
+              ),
+            ),
+          ],
         ),
     ],
   );

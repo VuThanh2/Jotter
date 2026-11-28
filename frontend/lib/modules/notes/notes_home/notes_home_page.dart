@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -20,6 +21,7 @@ import 'package:jotter/shared/widgets/adaptive_scaffold.dart';
 import 'package:jotter/shared/widgets/note_card.dart';
 import 'package:jotter/shared/widgets/note_collection.dart';
 import 'package:jotter/shared/widgets/note_search_bar.dart';
+import 'package:jotter/shared/widgets/page_shortcuts.dart';
 import 'package:jotter/shared/widgets/permission_badge.dart';
 import 'package:jotter/shared/widgets/state_views.dart';
 
@@ -44,6 +46,20 @@ class _NotesHomeView extends StatefulWidget {
 class _NotesHomeViewState extends State<_NotesHomeView> {
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
+  bool _fabExtended = true;
+
+  /// The phone FAB shows its label at rest and tucks it away while the
+  /// list scrolls down, so it never covers the cards being read.
+  bool _onScroll(UserScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+    final extended = switch (notification.direction) {
+      ScrollDirection.reverse => false,
+      ScrollDirection.forward => true,
+      ScrollDirection.idle => notification.metrics.pixels < 24 || _fabExtended,
+    };
+    if (extended != _fabExtended) setState(() => _fabExtended = extended);
+    return false;
+  }
 
   @override
   void dispose() {
@@ -61,7 +77,8 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
 
   void _notify(String? message) {
     if (message == null || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _onAction(JotterNote note, NoteCardAction action) async {
@@ -86,32 +103,51 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
   }
 
   @override
-  Widget build(BuildContext context) => CallbackShortcuts(
+  Widget build(BuildContext context) => PageShortcuts(
+    autofocus: true,
     bindings: {
       const SingleActivator(LogicalKeyboardKey.keyN, control: true): _newNote,
       const SingleActivator(LogicalKeyboardKey.keyN, meta: true): _newNote,
+      // Browsers keep Ctrl+N for a new window.
+      const SingleActivator(LogicalKeyboardKey.keyN, alt: true): _newNote,
       const SingleActivator(LogicalKeyboardKey.keyK, control: true):
           _searchFocus.requestFocus,
       const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
           _searchFocus.requestFocus,
     },
-    child: Focus(
-      autofocus: true,
-      child: Scaffold(
-        floatingActionButton: context.isCompact
-            ? FloatingActionButton(
-                key: const Key('new-note-fab'),
-                tooltip: 'New note',
-                onPressed: _newNote,
-                child: const Icon(Icons.add_rounded),
-              )
-            : null,
-        body: BlocBuilder<NotesHomeCubit, NotesHomeState>(
-          builder: (context, state) {
-            final preferences = context.watch<PreferencesCubit>().state;
-            final horizontal = context.isCompact ? 16.0 : 32.0;
-            return RefreshIndicator(
-              onRefresh: context.read<NotesHomeCubit>().refresh,
+    child: Scaffold(
+      floatingActionButton: context.isCompact
+          ? FloatingActionButton.extended(
+              key: const Key('new-note-fab'),
+              tooltip: 'New note',
+              onPressed: _newNote,
+              extendedPadding: const EdgeInsets.symmetric(horizontal: 16),
+              label: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.add_rounded),
+                  AnimatedSize(
+                    duration: JotterMotion.medium,
+                    curve: JotterMotion.curve,
+                    child: _fabExtended
+                        ? const Padding(
+                            padding: EdgeInsets.only(left: 8, right: 4),
+                            child: Text('New note'),
+                          )
+                        : const SizedBox(height: 24),
+                  ),
+                ],
+              ),
+            )
+          : null,
+      body: BlocBuilder<NotesHomeCubit, NotesHomeState>(
+        builder: (context, state) {
+          final preferences = context.watch<PreferencesCubit>().state;
+          final horizontal = context.isCompact ? 16.0 : 32.0;
+          return RefreshIndicator(
+            onRefresh: context.read<NotesHomeCubit>().refresh,
+            child: NotificationListener<UserScrollNotification>(
+              onNotification: _onScroll,
               child: CustomScrollView(
                 slivers: [
                   SliverPadding(
@@ -126,13 +162,31 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
                       ),
                     ),
                   ),
+                  if (state.refreshing && state.status != NotesStatus.loading)
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontal,
+                        0,
+                        horizontal,
+                        8,
+                      ),
+                      sliver: const SliverToBoxAdapter(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.all(Radius.circular(2)),
+                          child: LinearProgressIndicator(
+                            minHeight: 3,
+                            semanticsLabel: 'Refreshing notes',
+                          ),
+                        ),
+                      ),
+                    ),
                   ..._body(context, state, preferences, horizontal),
-                  const SliverToBoxAdapter(child: SizedBox(height: 96)),
+                  const SliverToBoxAdapter(child: SizedBox(height: 104)),
                 ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     ),
   );
@@ -147,7 +201,12 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
         SliverFillRemaining(hasScrollBody: false, child: child);
     if (state.status == NotesStatus.loading ||
         (state.searching && state.searchResults == null)) {
-      return [fill(const LoadingView())];
+      return [
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 0),
+          sliver: NoteSkeletonSliver(listMode: preferences.listMode),
+        ),
+      ];
     }
     if (state.status == NotesStatus.failure) {
       return [
@@ -155,6 +214,16 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
           ErrorView(
             message: state.error ?? 'Your notes could not be loaded.',
             onRetry: context.read<NotesHomeCubit>().refresh,
+          ),
+        ),
+      ];
+    }
+    if (state.isSearching && state.error != null) {
+      return [
+        fill(
+          ErrorView(
+            message: state.error!,
+            onRetry: context.read<NotesHomeCubit>().retrySearch,
           ),
         ),
       ];
@@ -169,6 +238,13 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
       listMode: preferences.listMode,
       color: preferences.noteColor,
       onOpen: () => _open(note),
+      onLongPress: note.isOwned && context.isCompact
+          ? () => showNoteActionSheet(
+              context,
+              note,
+              (action) => _onAction(note, action),
+            )
+          : null,
       menu: note.isOwned
           ? NoteCardMenu(
               note: note,
@@ -182,7 +258,13 @@ class _NotesHomeViewState extends State<_NotesHomeView> {
           padding: EdgeInsets.symmetric(horizontal: horizontal),
           sliver: SliverMainAxisGroup(
             slivers: [
-              SliverToBoxAdapter(child: NoteSectionHeading(title, icon: icon)),
+              SliverToBoxAdapter(
+                child: NoteSectionHeading(
+                  title,
+                  icon: icon,
+                  count: notes.length,
+                ),
+              ),
               NoteCollectionSliver(
                 notes: notes,
                 listMode: preferences.listMode,
@@ -266,22 +348,51 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final cubit = context.read<NotesHomeCubit>();
     final preferences = context.read<PreferencesCubit>();
+    final palette = context.jotterColors;
+    final compact = context.isCompact;
     final count = state.notes.where((note) => note.isOwned).length;
+    final pinned = state.notes.where((n) => n.isOwned && n.isPinned).length;
+    final summary = [
+      '$count ${count == 1 ? 'note' : 'notes'}',
+      if (pinned > 0) '$pinned pinned',
+    ].join(' · ');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Text('Notes', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(width: 10),
-            Text(
-              '$count',
-              style: TextStyle(color: context.jotterColors.muted),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Notes',
+                    style: compact
+                        ? Theme.of(context).textTheme.headlineSmall
+                        : Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  if (state.status == NotesStatus.ready) ...[
+                    const SizedBox(height: 2),
+                    AnimatedSwitcher(
+                      duration: JotterMotion.fast,
+                      child: Text(
+                        summary,
+                        key: ValueKey(summary),
+                        style: TextStyle(fontSize: 13.5, color: palette.muted),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-            const Spacer(),
             SegmentedButton<bool>(
               key: const Key('view-toggle'),
               showSelectedIcon: false,
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               segments: const [
                 ButtonSegment(
                   value: false,
@@ -301,37 +412,50 @@ class _Header extends StatelessWidget {
                 ),
               ),
             ),
-            if (!context.isCompact) ...[
+            if (!compact) ...[
               const SizedBox(width: 12),
-              FilledButton.icon(
-                key: const Key('new-note'),
-                onPressed: onNewNote,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('New note'),
+              Tooltip(
+                message: 'New note (Alt+N)',
+                child: FilledButton.icon(
+                  key: const Key('new-note'),
+                  onPressed: onNewNote,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('New note'),
+                ),
               ),
             ],
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         NoteSearchBar(
           controller: search,
           focusNode: searchFocus,
           onChanged: cubit.search,
+          shortcutHint: !compact,
         ),
-        if (state.searching && state.searchResults != null)
-          const LinearProgressIndicator(minHeight: 2),
-        const SizedBox(height: 12),
+        SizedBox(
+          height: 3,
+          child: state.searching && state.searchResults != null
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: LinearProgressIndicator(minHeight: 2),
+                )
+              : null,
+        ),
+        const SizedBox(height: 10),
         LabelFilterBar(
           labels: state.labels,
           selected: state.selectedLabelIds,
           onToggle: cubit.toggleLabel,
           onClear: cubit.clearLabels,
         ),
-        if (state.error != null && state.status == NotesStatus.ready) ...[
+        if (state.error != null &&
+            state.status == NotesStatus.ready &&
+            !state.isSearching) ...[
           const SizedBox(height: 12),
           MessageStrip(state.error!, error: true),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
       ],
     );
   }

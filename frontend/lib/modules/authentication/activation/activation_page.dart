@@ -59,8 +59,26 @@ class _ActivationViewState extends State<_ActivationView> {
     final cubit = context.read<ActivationCubit>();
     return PageFrame(
       title: 'Confirm your email',
+      subtitle: 'One quick step so people can share notes with you.',
+      icon: Icons.mark_email_read_outlined,
       fallbackRoute: AppRoutes.account,
       maxWidth: 440,
+      cardOnWide: true,
+      aside: PageIntro(
+        heading: 'Check your inbox',
+        body: 'We sent a six-digit code to ${cubit.email}.',
+        points: const [
+          (Icons.schedule_rounded, 'The code arrives within a minute or two.'),
+          (
+            Icons.folder_special_outlined,
+            'Not there? Look in spam or promotions.',
+          ),
+          (
+            Icons.edit_note_rounded,
+            'You can keep using Jotter while you wait.',
+          ),
+        ],
+      ),
       child: BlocConsumer<ActivationCubit, ActivationState>(
         listenWhen: (_, state) => state.isSuccess,
         listener: _onSuccess,
@@ -82,7 +100,6 @@ class _ActivationViewState extends State<_ActivationView> {
                   key: const Key('activation-code'),
                   controller: _code,
                   label: 'Activation code',
-                  enabled: !busy,
                   onCompleted: (_) => _submit(),
                 ),
                 Align(

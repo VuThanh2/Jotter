@@ -130,7 +130,7 @@ class _RegisterViewState extends State<_RegisterView> {
                   Text(
                     passwordHint,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 12.5,
                       color: context.jotterColors.muted,
                     ),
                   ),

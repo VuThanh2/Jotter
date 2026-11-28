@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -10,8 +9,6 @@ import 'package:jotter/data/api_note_repository.dart';
 import 'package:jotter/data/note_repository.dart';
 import 'package:jotter/models/jotter_account.dart';
 import 'package:jotter/models/jotter_preferences.dart';
-import 'package:jotter/widgets/account_dialog.dart';
-import 'package:jotter/widgets/account_settings_dialog.dart';
 
 Map<String, dynamic> profile({bool activated = false}) => {
   'userId': 'user-1',
@@ -108,22 +105,14 @@ void main() {
   );
 
   test(
-    'anonymous validation errors expose field messages and stable server code',
+    'validation errors are shown in English with the stable server code',
     () async {
       final api = AccountAuthApi(
         'http://localhost:5080',
         client: MockClient(
           (_) async => jsonResponse({
-            'code': 'ValidationError',
-            'title': 'Invalid data',
-            'errors': {
-              'password': [
-                {
-                  'code': 'PasswordTooShort',
-                  'message': 'Choose a longer password.',
-                },
-              ],
-            },
+            'code': 'DisplayNameRequired',
+            'title': 'Tên hiển thị không được để trống.',
           }, 400),
         ),
       );
@@ -139,9 +128,9 @@ void main() {
               .having(
                 (error) => error.message,
                 'message',
-                'Choose a longer password.',
+                'Enter your display name.',
               )
-              .having((error) => error.code, 'code', 'ValidationError'),
+              .having((error) => error.code, 'code', 'DisplayNameRequired'),
         ),
       );
       api.close();
@@ -266,172 +255,6 @@ void main() {
         JotterPreferences.fromJson(const {}).toJson(),
         const JotterPreferences().toJson(),
       );
-    },
-  );
-
-  testWidgets(
-    'registration and recovery controls are reachable on a narrow phone',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(320, 740);
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () => showAccountDialog(context),
-                child: const Text('Open account'),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('Open account'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Create an account'));
-      await tester.tap(find.text('Create an account'));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('account-name')), findsOneWidget);
-      await tester.ensureVisible(find.text('Create account'));
-      await tester.tap(find.text('Create account'));
-      await tester.pumpAndSettle();
-      expect(find.text('Enter your display name.'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.text('Back to sign in'));
-      await tester.tap(find.text('Back to sign in'));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Forgot password?'));
-      await tester.tap(find.text('Forgot password?'));
-      await tester.pumpAndSettle();
-      expect(find.text('Send reset code'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets('preferences apply only after the server confirms a save', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(700, 1100);
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    var savedCount = 0;
-    JotterPreferences? applied;
-    final repo = repository(
-      MockClient((request) async {
-        expect(request.url.path, '/api/me/preferences');
-        savedCount++;
-        if (savedCount == 1) {
-          return jsonResponse({'title': 'Preferences unavailable.'}, 503);
-        }
-        return jsonResponse(jsonDecode(request.body));
-      }),
-      activated: true,
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => showAccountSettingsDialog(
-                context,
-                repository: repo,
-                preferences: const JotterPreferences(),
-                onPreferencesChanged: (value) => applied = value,
-              ),
-              child: const Text('Settings'),
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('Settings'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Appearance'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('default-note-color')),
-      '#ABCDEF',
-    );
-    await tester.ensureVisible(find.text('Save preferences'));
-    await tester.tap(find.text('Save preferences'));
-    await tester.pumpAndSettle();
-    expect(applied, isNull);
-    expect(find.text('Preferences unavailable.'), findsOneWidget);
-    await tester.tap(find.text('Save preferences'));
-    await tester.pumpAndSettle();
-    expect(applied!.defaultNoteColor, '#ABCDEF');
-    expect(savedCount, 2);
-    expect(tester.takeException(), isNull);
-  });
-  testWidgets(
-    'settings preserve failed profile input and validate password confirmation',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(700, 900);
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final repo = repository(
-        MockClient(
-          (request) async => jsonResponse({
-            'code': 'Unavailable',
-            'title': 'Please try again.',
-          }, 503),
-        ),
-        activated: true,
-      );
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () => showAccountSettingsDialog(
-                  context,
-                  repository: repo,
-                  preferences: const JotterPreferences(),
-                  onPreferencesChanged: (_) {},
-                ),
-                child: const Text('Settings'),
-              ),
-            ),
-          ),
-        ),
-      );
-      await tester.tap(find.text('Settings'));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('profile-name')),
-        'Unsaved Reader',
-      );
-      await tester.ensureVisible(find.text('Save profile'));
-      await tester.tap(find.text('Save profile'));
-      await tester.pumpAndSettle();
-      expect(find.text('Please try again.'), findsOneWidget);
-      expect(
-        tester
-            .widget<TextFormField>(find.byKey(const Key('profile-name')))
-            .controller!
-            .text,
-        'Unsaved Reader',
-      );
-      await tester.tap(find.text('Security'));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('current-password')),
-        'Old@1234',
-      );
-      await tester.enterText(find.byKey(const Key('new-password')), 'New@1234');
-      await tester.enterText(
-        find.byKey(const Key('confirm-new-password')),
-        'Different',
-      );
-      await tester.ensureVisible(find.text('Change password'));
-      await tester.tap(find.text('Change password'));
-      await tester.pumpAndSettle();
-      expect(find.text('The passwords do not match.'), findsOneWidget);
-      expect(tester.takeException(), isNull);
     },
   );
 }

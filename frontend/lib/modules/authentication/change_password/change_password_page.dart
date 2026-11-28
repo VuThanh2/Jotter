@@ -67,8 +67,20 @@ class _ChangePasswordViewState extends State<_ChangePasswordView> {
   Widget build(BuildContext context) => PageFrame(
     banner: const UnverifiedBanner(),
     title: 'Change password',
+    subtitle: 'Keep your account safe with a password only you know.',
+    icon: Icons.lock_outline_rounded,
     fallbackRoute: AppRoutes.account,
     maxWidth: 440,
+    cardOnWide: true,
+    aside: const PageIntro(
+      heading: 'A fresh password',
+      body: 'Other devices will be signed out. This one stays signed in.',
+      points: [
+        (Icons.password_rounded, 'Use a mix of letters, numbers and symbols.'),
+        (Icons.devices_rounded, 'Sign in again on your other devices after.'),
+        (Icons.key_off_rounded, 'Note passwords are not changed by this.'),
+      ],
+    ),
     child: BlocConsumer<ChangePasswordCubit, ChangePasswordState>(
       listener: _onResult,
       builder: (context, state) {
@@ -79,12 +91,15 @@ class _ChangePasswordViewState extends State<_ChangePasswordView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 12),
-                Text(
-                  'Other devices will be signed out. This one stays signed in.',
-                  style: TextStyle(color: context.jotterColors.muted),
-                ),
-                const SizedBox(height: 24),
+                if (!context.isExpanded) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Other devices will be signed out. This one stays signed '
+                    'in.',
+                    style: TextStyle(color: context.jotterColors.muted),
+                  ),
+                  const SizedBox(height: 24),
+                ],
                 PasswordField(
                   key: const Key('current-password'),
                   controller: _current,
@@ -122,7 +137,7 @@ class _ChangePasswordViewState extends State<_ChangePasswordView> {
                 Text(
                   passwordHint,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 12.5,
                     color: context.jotterColors.muted,
                   ),
                 ),
@@ -134,6 +149,7 @@ class _ChangePasswordViewState extends State<_ChangePasswordView> {
                 if (state.isSuccess) ...[
                   const MessageStrip(
                     'Password changed. Other devices need to sign in again.',
+                    tone: JotterTone.success,
                   ),
                   const SizedBox(height: 16),
                 ],
