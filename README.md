@@ -4,9 +4,9 @@ A cross-platform note-taking app for **Web** and **Android**, built from a singl
 
 | | |
 | --- | --- |
-| **Web app** | `<web-url>` |
-| **API** | `<api-url>` (hosted on Railway) |
-| **Android APK** | `<apk-file-name>` (package `com.tdtu.jotter`) |
+| **Web app** | <https://jotter-frontend-nine.vercel.app> (hosted on Vercel) |
+| **API** | <https://jotter-production-15293941.up.railway.app> (hosted on Railway) |
+| **Android APK** | `app-release.apk` |
 | **Supported platforms** | Web (Chrome, Edge, Firefox) · Android |
 
 ## Overview
@@ -93,6 +93,7 @@ Then fill in `.env`:
 | --- | --- |
 | `Jwt__Secret` | **Required.** At least 32 random characters (e.g. `openssl rand -base64 48`). |
 | `Email__*` | SMTP settings. If `Email__Host` is empty, activation and OTP codes are only written to the API log. |
+| `Email__MailjetApiKey`, `Email__MailjetSecretKey` | Deployment only. Railway blocks outbound SMTP on the Free/Hobby plans, so when both keys are set the API sends mail through Mailjet's HTTPS API instead (`Email__From` must be a sender verified in Mailjet). |
 | `Llm__ApiKey` | Gemini API key. Without it, the AI features are unavailable and everything else still works. |
 
 ### 2. Run the backend
@@ -156,8 +157,8 @@ dotnet test
 
 ```bash
 cd frontend
-flutter build web --release --dart-define=API_URL=https://<api-domain>
-flutter build apk --release --dart-define=API_URL=https://<api-domain>
+flutter build web --release --dart-define=API_URL=https://jotter-production-15293941.up.railway.app
+flutter build apk --release --dart-define=API_URL=https://jotter-production-15293941.up.railway.app
 ```
 
 The outputs are `frontend/build/web/` and `frontend/build/app/outputs/flutter-apk/app-release.apk`.
