@@ -20,6 +20,14 @@ public sealed class EmailOptions : IValidatableObject
 
     public string FromName { get; init; } = "Jotter";
 
+    // Chỉ đặt trên Railway (chặn cổng SMTP): có đủ cặp khoá thì gửi qua HTTPS API của Mailjet, được ưu tiên hơn SMTP.
+    public string? MailjetApiKey { get; init; }
+
+    public string? MailjetSecretKey { get; init; }
+
+    public bool IsMailjetConfigured =>
+        !string.IsNullOrWhiteSpace(MailjetApiKey) && !string.IsNullOrWhiteSpace(MailjetSecretKey);
+
     public bool IsSmtpConfigured => !string.IsNullOrWhiteSpace(Host);
 
     public string? SenderAddress => string.IsNullOrWhiteSpace(From) ? Username : From;
@@ -32,11 +40,19 @@ public sealed class EmailOptions : IValidatableObject
             yield return new ValidationResult("Email:From không phải địa chỉ email hợp lệ.", [nameof(From)]);
         }
 
-        if (IsSmtpConfigured && string.IsNullOrWhiteSpace(SenderAddress))
+        if ((IsSmtpConfigured || IsMailjetConfigured) && string.IsNullOrWhiteSpace(SenderAddress))
         {
             yield return new ValidationResult(
-                "Cần Email:From (hoặc Email:Username) khi đã cấu hình SMTP.",
+                "Cần Email:From (hoặc Email:Username) khi đã cấu hình SMTP hoặc Mailjet.",
                 [nameof(From)]);
+        }
+
+        // Chỉ đặt một trong hai khoá thì lặng lẽ rơi về SMTP/log — báo ngay lúc khởi động để không tưởng là đã gửi được.
+        if (string.IsNullOrWhiteSpace(MailjetApiKey) != string.IsNullOrWhiteSpace(MailjetSecretKey))
+        {
+            yield return new ValidationResult(
+                "Cần đặt cả Email:MailjetApiKey lẫn Email:MailjetSecretKey.",
+                [nameof(MailjetApiKey), nameof(MailjetSecretKey)]);
         }
     }
 }
